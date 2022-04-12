@@ -15,16 +15,14 @@ pub struct FileSource {
     current_char: char,
 }
 
-
-
 impl Source for FileSource {
     //!FIXME: this is bad xD
     fn get_next_char(&mut self) -> Result<char, ReadError> {
        match self.reader.next_char() {
             Ok(ch) => {
                 match ch {
-                    utf8_read::Char::Eof => Err(ReadError::Eof),
-                    utf8_read::Char::NoData => Err(ReadError::NoData),
+                    utf8_read::Char::Eof => Ok(3 as char),
+                    utf8_read::Char::NoData => Ok(3 as char),
                     utf8_read::Char::Char(read_char) => {
                         self.current_pos += 1;
                         self.current_char = read_char;
@@ -34,6 +32,7 @@ impl Source for FileSource {
             Err(e) => Err(ReadError::ReadingError(Box::new(e))),
        }
     }
+
     fn current_position(&self) -> u64 {
         self.current_pos
     }
@@ -68,9 +67,10 @@ impl Source for TestSource {
                 self.pos += c.len_utf8();
                 Ok(c)
             },
-            _ => Err(ReadError::Eof)
+            _ => Ok(3 as char)
         }
     }
+
     fn current_position(&self) -> u64 {
         self.pos as u64
     }
@@ -93,7 +93,6 @@ mod test {
 
     #[test]
     fn basic_read_file() {
-        //!FIXME: better filename
         //Will unwrap cuz it's test
         let data = ['a','a','a','b','b','b'];
         fs::write("test.txt", "aaabbb").expect("unable to write");
@@ -101,13 +100,16 @@ mod test {
         let mut i = 0;
         loop {
             match fs.get_next_char() {
-                Err(_) => {break},
+                Err(_) => panic!(),
                 Ok(ch) => {
+                    if ch.is_control() {
+                        break;
+                    }
                     assert_eq!(ch, data[i]);
                     i += 1;
                 }
             }
         }
-
+        fs::remove_file("test.txt").unwrap();
     }
 }

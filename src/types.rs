@@ -41,15 +41,24 @@ impl Position {
 
 }
 
-use std::str;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Number {
+    integer_part: u64,
+    decimal_part: u64,
+    decimal_part_len: u64
+}
+
+impl Number {
+    pub fn new(integer_part: u64, decimal_part: u64, decimal_part_len: u64) -> Self { Self { integer_part, decimal_part, decimal_part_len } }
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum TokenKind {
-    Integer(usize),
-    Decimal(f64),
+    Number(Number),
     Identifier(String),
-    QuotedString(String),
+    QuotedString(String), //? can this work like this or do i need to have string and quotation mark as different token kinds 
     Comment(String),
     While,
     If,
@@ -61,8 +70,6 @@ pub enum TokenKind {
     LeftParentheses,
     RightParentheses,
     Comma,
-    QuotationMark,
-    SingleQuotationMark,
     // relation operators
     GraterThen,
     LessThen,
@@ -88,34 +95,11 @@ pub enum TokenKind {
     DivisionAssignment,
     ModuloAssignment,
 
+    Semicolon,
+
     EndOfFile,
     Unknown,
 }
-
-impl From<String> for TokenKind {
-    fn from(other: String) -> TokenKind {
-        TokenKind::Identifier(other)
-    }
-}
-
-impl<'a> From<&'a str> for TokenKind {
-    fn from(other: &'a str) -> TokenKind {
-        TokenKind::Identifier(other.to_string())
-    }
-}
-
-impl From<usize> for TokenKind {
-    fn from(other: usize) -> TokenKind {
-        TokenKind::Integer(other)
-    }
-}
-
-impl From<f64> for TokenKind {
-    fn from(other: f64) -> TokenKind {
-        TokenKind::Decimal(other)
-    }
-}
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {

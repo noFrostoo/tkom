@@ -1,16 +1,14 @@
-use crate::types::{Token, Position};
+use crate::types::{Token, Position, Number};
 use std::error::Error;
 
 pub enum ReadError{
-    Eof,
-    NoData,
     ReadingError(Box<dyn Error>),
 }
 
 pub enum LexerErrorKind {
-    EndOfFile,
-    UnexpectedCharacter,
-    ReadError(Box<dyn Error>)
+    UnexpectedCharacter { actual: char, expected: String, position: Position },
+    ReadError(Box<dyn Error>), //TODO Add bad number
+    BadNumber(Number, u32) // second one is bad zero count
 }
 
 pub enum ErrorKind {

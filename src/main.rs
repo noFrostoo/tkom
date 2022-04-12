@@ -1,11 +1,15 @@
-use crate::file_handler::Source;
+use errors::LexerErrorKind;
 
 pub mod file_handler;
 mod types;
 mod lexer;
 mod errors;
 
+fn dummy() -> Result<bool, LexerErrorKind> {
+    Ok(false)
+}
 fn main() {
-    let ch = 13 as char;
-    println!("{}", ch.len_utf8());
+    while let Ok(eee) = dummy() {
+        println!("{}", eee);
+    }
 }
