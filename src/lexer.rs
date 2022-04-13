@@ -1,12 +1,13 @@
-use std::collections::{VecDeque};
+use std::{collections::{VecDeque}, process::exit};
 
-use crate::{types::{Token, TokenKind, Position, Number}, file_handler::Source, errors::{LexerErrorKind, ReadError}};
+use crate::{types::{Token, TokenKind, Position, Number}, file_handler::Source, errors::{ErrorKind, ErrorHandler}};
 
 const ETX: char = 3 as char;
 
 pub trait TLexer {
-    fn get_next_token(&mut self) -> Result<Token, LexerErrorKind>;
+    fn get_next_token(&mut self) -> Result<Token, ErrorKind>;
     fn get_current_token(&self) -> Token;
+    fn get_position(&self) -> Position;
 }
 
 
@@ -18,31 +19,31 @@ struct Lexer {
 }
 
 impl TLexer for Lexer {
-    fn get_next_token(&mut self) -> Result<Token, LexerErrorKind> {
-        match self.skip_whitespace() {
-            Some(e) => return Err(e),
-            None => {},
-        }
+    fn get_next_token(&mut self) -> Result<Token, ErrorKind> {
+        self.skip_whitespace();
 
-        match self.skip_new_lines() {
-            Some(e) => return Err(e),
-            None => {},
-        }
+        self.skip_new_lines();
 
         if self.current_char == ETX{
             return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::EndOfFile));
         }
         
-        return self.try_tokenize_ident_or_keyword().
+        let res = self.try_tokenize_ident_or_keyword().
             or_else(|_| self.try_build_operator()).
             or_else(|_| self.try_build_parentheses_or_comma()).
             or_else(|_| self.try_build_comment()).
             or_else(|_| self.try_build_string()).
-            or_else(|_| self.try_build_number())
+            or_else(|_| self.try_build_number());
+
+        ErrorHandler::handle_result(res)
     }
 
     fn get_current_token(&self) -> Token {
         self.token.clone()
+    }
+
+    fn get_position(&self) -> Position {
+        self.pos.clone()
     }
 }
 
@@ -57,58 +58,36 @@ pub fn new(source: Box<dyn Source>) -> Lexer {
     }
 }
 
-fn skip_whitespace(&mut self) -> Option<LexerErrorKind> {
+fn skip_whitespace(&mut self) {
     while self.current_char.is_whitespace() {
-        match self.get_next_char(){
-            Ok(_) => (),
-            Err(e) => return Some(e),
-        };
+        self.get_next_char();
     }
-
-    None
 }
 
-fn get_next_char(&mut self) -> Result<char, LexerErrorKind> {
+fn get_next_char(&mut self) -> char {
     match self.source.get_next_char() {
         Ok(read_char) => {
             self.current_char = read_char;
-            self.pos.new_char(read_char.len_utf8() as u64);
-            Ok(read_char)
+            self.pos.new_char(self.source.current_position());
+            read_char
         },
         Err(e) => {
-            match e {
-                /*
-                !!this is retarded, one error type ??
-                */
-                ReadError::ReadingError(e ) => Err(LexerErrorKind::ReadError(e)),
-            }
+            ErrorHandler::fatal(e);
         }
     }
 }
 
 
-fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, LexerErrorKind> {
+fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, ErrorKind> {
     if !self.current_char.is_alphabetic() {
-        return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char.clone(), expected: String::from("a,b,.."), position: self.pos.clone() });
+        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char.clone(), expected: String::from("a,b,.."), position: self.pos.clone() });
     }
 
-    let mut value: VecDeque<char> = VecDeque::from_iter([self.current_char]); 
-    
-    loop {
-        let ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+    let mut value: VecDeque<char> = VecDeque::new(); 
 
-        if ch.is_whitespace() {
-            break; 
-        }
-
-        if !ch.is_alphanumeric() {
-            break ;
-        }
-
-        value.push_back(ch);
+    while !self.current_char.is_whitespace() && self.current_char.is_alphanumeric() {
+        value.push_back(self.current_char);
+        self.get_next_char();
     }
 
     let word = String::from_iter(value);
@@ -118,9 +97,6 @@ fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, LexerErrorKind> {
         "return" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Return)),
         "if" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::If)),
         "else" =>Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Else)),
-        /*
-        ! Keep it here ?
-        */
         "or" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Or)),
         "and" =>Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::And)),
         _ => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Identifier(word)))
@@ -128,199 +104,132 @@ fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, LexerErrorKind> {
     
 }
 
-fn try_build_operator(&mut self) -> Result<Token, LexerErrorKind>{
+fn try_build_operator(&mut self) -> Result<Token, ErrorKind>{
     match self.current_char {
         '>' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::GraterEqualThen))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::GraterThen))
         },
         '<' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LessEqualThen))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LessThen))
         },
         '=' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Equal))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Assignment))
         },
         '+' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
-
+            let ch = self.get_next_char();
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::AddAssignment))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Addition))
         },
         '-' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::SubtractAssignment))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Subtraction))
         },
         '/' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::DivisionAssignment))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Division))
         },
         '*' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::MultiplicationAssignment))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Multiplication))
         },
         '%' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::ModuloAssignment))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Modulo))
         },
         '|' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             /*
             ! Report error
             */
             if ch != '|' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
-                return Err(LexerErrorKind::UnexpectedCharacter { actual: ch, expected: String::from("|"), position: self.pos.clone() })
+                self.get_next_char();
+                return Err(ErrorKind::UnexpectedCharacter { actual: ch, expected: String::from("|"), position: self.pos.clone() })
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Or))
         },
         '&' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             /*
             ! Report error
             */
             if ch != '&' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
-                return Err(LexerErrorKind::UnexpectedCharacter { actual: ch, expected: String::from("&"), position: self.pos.clone() })
+                self.get_next_char();
+                return Err(ErrorKind::UnexpectedCharacter { actual: ch, expected: String::from("&"), position: self.pos.clone() })
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::And))
         },
         '!' => {
-            let ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => return Err(e),
-            };
+            let ch = self.get_next_char();
 
             if ch == '=' {
-                match self.get_next_char(){
-                    Ok(c) => c,
-                    Err(e) => return Err(e),
-                };
+                self.get_next_char();
                 return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::NotEqual))
             }
 
             Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Not))
         },
-        _ => Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("<, >, |, &, =, !, +, -, /, %"), position: self.pos.clone() }),
+        _ => Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("<, >, |, &, =, !, +, -, /, %"), position: self.pos.clone() }),
     }
 }
 
 /*
 ! Refactor name
 */
-fn try_build_parentheses_or_comma(&mut self) -> Result<Token, LexerErrorKind> {
-    let res: Result<Token, LexerErrorKind>;
+fn try_build_parentheses_or_comma(&mut self) -> Result<Token, ErrorKind> {
+    let res: Result<Token, ErrorKind>;
     
     match self.current_char {
         '{' => res = Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LeftBracket)),
@@ -329,52 +238,27 @@ fn try_build_parentheses_or_comma(&mut self) -> Result<Token, LexerErrorKind> {
         ')' => res = Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::RightParentheses)),
         '.' => res = Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comma)),
         ';' => res = Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Semicolon)),
-        _ => res = Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("{, }, (, ), ."), position: self.pos.clone() }),
+        _ => res = Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("{, }, (, ), ."), position: self.pos.clone() }),
     }
 
     if res.is_ok() {
-        match self.get_next_char(){
-            Ok(_) => (),
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
+        self.get_next_char();
     }
 
     res
 }
 
-fn try_build_comment(&mut self) -> Result<Token, LexerErrorKind> {
+fn try_build_comment(&mut self) -> Result<Token, ErrorKind> {
     if self.current_char != '#' {
-        return  Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("#"), position: self.pos.clone() });
+        return  Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("#"), position: self.pos.clone() });
     }
 
     let mut value: VecDeque<char> = VecDeque::new(); 
+    self.get_next_char();
 
-    loop {
-        let ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
-
-        if ch == ETX {
-            break;
-        }
-
-        match self.check_new_line() {
-            Ok(new_line) => {
-                if new_line {
-                    break;
-                }
-            },
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        }
-
-        value.push_back(ch);
+    while !self.check_new_line() && self.current_char != ETX {
+        value.push_back(self.current_char);
+        self.get_next_char();
     }
 
     let word = String::from_iter(value);
@@ -382,76 +266,52 @@ fn try_build_comment(&mut self) -> Result<Token, LexerErrorKind> {
     Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comment(word)))
 }
 
-fn check_new_line(&mut self) -> Result<bool, LexerErrorKind> {
+fn check_new_line(&mut self) -> bool {
     if self.current_char == 10 as char{
-        let ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let ch = self.get_next_char();
 
         if ch == 13 as char {
-            match self.get_next_char(){
-                Ok(_) => {},
-                Err(e) => return Err(e),
-            };
+            self.get_next_char();
             self.pos.new_line(2);
-            return Ok(true)
+            return true
         }
 
         self.pos.new_line(1);
-        return Ok(true)
+        return true
     }
 
     if self.current_char == 13 as char {
-        let ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let ch = self.get_next_char();
 
         if ch == 10 as char {
-            match self.get_next_char(){
-                Ok(_) => {},
-                Err(e) => return Err(e),
-            };
+            self.get_next_char();
+
             self.pos.new_line(2);
-            return Ok(true)
+            return true
         }
 
         self.pos.new_line(1);
-        return Ok(true)
+        return true
     }
 
     if self.current_char == 30 as char {
-        match self.get_next_char(){
-            Ok(_) => {},
-            Err(e) => return Err(e),
-        };
+        self.get_next_char();
+
         self.pos.new_line(1);
-        return Ok(true)
+        return true
     }
 
-    Ok(false)
+    false
 }
 
-fn skip_new_lines(&mut self) -> Option<LexerErrorKind>{
-    loop {
-        match self.check_new_line() {
-            Ok(new_line) => {
-                if !new_line {
-                    return None;
-                }
-            },
-            Err(e) => match e {
-                e => return Some(e),
-            },
-        }
-        
+fn skip_new_lines(&mut self){
+    while self.check_new_line() {
     }
 }
 
-fn try_build_number(&mut self) -> Result<Token, LexerErrorKind> {
+fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
     if !self.current_char.is_digit(10) {
-        return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
+        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
     }
 
     let mut int_part: u64 = 0;
@@ -461,77 +321,52 @@ fn try_build_number(&mut self) -> Result<Token, LexerErrorKind> {
 
     while self.current_char == '0' {
         zero_count += 1;
-        match self.get_next_char(){
-            Ok(_) => {},
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
+        self.get_next_char();
     }
 
     if self.current_char != '.' && !self.current_char.is_digit(10) {
-        return  Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
+        return  Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
     }
 
     if zero_count == 0 && self.current_char != '.' {
         int_part += self.current_char as u64 - '0' as u64 ;
 
-        let mut ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
+        let mut ch = self.get_next_char();
         
         while ch.is_digit(10) {
             int_part = int_part * 10 + ch as u64 - '0' as u64;
-            ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => match e {
-                    e => return Err(e),
-                },
-            };
+            ch = self.get_next_char();
         }
     }
 
     if self.current_char == '.' {
         zero_count = 0;
-        let mut ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
+        let mut ch = self.get_next_char();
 
         if ch == ETX {
-            return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() })
+            return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() })
         }
 
         while ch.is_digit(10) {
             frac_part = frac_part * 10 + ch as u64 - '0' as u64;
             frac_part_len += 1;
-            ch = match self.get_next_char(){
-                Ok(c) => c,
-                Err(e) => match e {
-                    e => return Err(e),
-                },
-            };
+            ch = self.get_next_char();
         }
     } else if !self.current_char.is_whitespace() && !self.current_char.is_control() {
-        return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() });
+        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() });
     }
 
     if zero_count > 0 {
-        return Err(LexerErrorKind::BadNumber(Number::new(int_part, frac_part, frac_part_len), zero_count));
+        return Err(ErrorKind::BadNumber { number: Number::new(int_part, frac_part, frac_part_len), zero_count: zero_count, position: self.pos.clone() });
     }
         
 
     Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Number::new(int_part, frac_part, frac_part_len))))
 }
 
-fn try_build_string(&mut self) -> Result<Token, LexerErrorKind> {
+fn try_build_string(&mut self) -> Result<Token, ErrorKind> {
     if self.current_char != '"' && self.current_char != '\'' {
-        return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
+        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
     }
 
     let mut value: VecDeque<char> = VecDeque::new(); 
@@ -539,12 +374,7 @@ fn try_build_string(&mut self) -> Result<Token, LexerErrorKind> {
 
     // ? is this correct ?
     while !self.current_char.is_control() {
-        let ch = match self.get_next_char(){
-            Ok(c) => c,
-            Err(e) => match e {
-                e => return Err(e),
-            },
-        };
+        let ch = self.get_next_char();
 
         if ch == '"' || ch == '\'' {
             closing_quote = true;
@@ -554,33 +384,24 @@ fn try_build_string(&mut self) -> Result<Token, LexerErrorKind> {
         /*
         ? allow for escape chars? what disallow in string 
         */
+        if ch == ETX {
+            return Err(ErrorKind::UnexpectedEOF{position: self.pos.clone()});
+        }
 
-        match self.check_new_line() {
-            Ok(new_line) => {
-                if new_line {
-                    return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
-                }
-            },
-            Err(e) => match e {
-                e => return Err(e),
-            },
+        if self.check_new_line() {
+            return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
         }
 
         value.push_back(ch);
     }
 
     if !closing_quote {
-        return Err(LexerErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
+        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
     }
 
     let word = String::from_iter(value);
 
-    match self.get_next_char(){
-        Ok(_) => {},
-        Err(e) => match e {
-            e => return Err(e),
-        }
-    }
+    self.get_next_char();
 
     Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::QuotedString(word)))
 }
@@ -709,4 +530,3 @@ mod test {
     TokenKind::Identifier(String::from("aaa")), TokenKind::Comma, TokenKind::Identifier(String::from("Gol")),
     TokenKind::Assignment, TokenKind::QuotedString(String::from("bebe")), TokenKind::Semicolon, TokenKind::RightBracket);
 }
-

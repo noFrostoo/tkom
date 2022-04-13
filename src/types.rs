@@ -1,9 +1,9 @@
 #[derive(Clone, Debug, PartialEq)]
 pub struct Position {
     //byte offset from begin of the file 
-    offset: u64,
-    line: u64,
-    column: u64,
+    pub offset: u64,
+    pub line: u64,
+    pub column: u64,
 }
 
 /*
@@ -28,15 +28,15 @@ impl Position {
         self.column = column;
     }
 
-    pub fn new_char(&mut self, char_len: u64) {
-        self.offset += char_len;
+    pub fn new_char(&mut self, new_steam_pos: u64) {
+        self.offset = new_steam_pos;
         self.column += 1;
     }
 
-    pub fn new_line(&mut self, char_len: u64) {
+    pub fn new_line(&mut self, new_steam_pos: u64) {
         self.column = 0;
         self.line += 1;
-        self.offset += char_len;
+        self.offset = new_steam_pos;
     }
 
 }
@@ -50,6 +50,14 @@ pub struct Number {
 
 impl Number {
     pub fn new(integer_part: u64, decimal_part: u64, decimal_part_len: u64) -> Self { Self { integer_part, decimal_part, decimal_part_len } }
+    
+    pub fn format(&self) -> String {
+        if self.decimal_part_len > 0 {
+            format!("{}.{}", self.integer_part, self.decimal_part/self.decimal_part_len)
+        } else {
+            format!("{}", self.integer_part)
+        }
+    }
 }
 
 
@@ -121,14 +129,6 @@ impl Token {
     }
 }
 
-// impl<T> From<T> for Token 
-// where T: Into<TokenKind> {
-//     fn from(other: T) -> Token {
-//        // Token::new(Span::, other)
-//     }
-// }
-
-
 
 
 #[cfg(test)]
@@ -163,8 +163,8 @@ mod test {
     #[test]
     fn test_pos_new_char() {
         let mut pos = create_pos();
-        pos.new_char(2);
-        assert_eq!(pos.offset, OFFSET+2);
+        pos.new_char(54);
+        assert_eq!(pos.offset, 54);
         assert_eq!(pos.line, LINE);
         assert_eq!(pos.column, COLUMN+1);
     }
@@ -174,7 +174,7 @@ mod test {
     fn test_pos_newline() {
         let mut pos = create_pos();
         pos.new_line(2);
-        assert_eq!(pos.offset, OFFSET+2);
+        assert_eq!(pos.offset, 2);
         assert_eq!(pos.line, LINE+1);
         assert_eq!(pos.column, 0);
     }

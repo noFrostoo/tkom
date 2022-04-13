@@ -1,40 +1,41 @@
-use std::error::Error;
-use std::fs::File;
-use utf8_read::{Reader};
+use std::{fs::File, error::Error};
+use utf8_read::{Reader, StreamPosition};
 
-use crate::errors::ReadError;
+use crate::errors::ErrorKind;
 
 pub trait Source {
-    fn get_next_char(&mut self) -> Result<char, ReadError>;
+    fn get_next_char(&mut self) -> Result<char, ErrorKind>;
     fn current_position(&self) -> u64;
 }
 
 pub struct FileSource {
-    current_pos: u64,
+    current_pos: StreamPosition,
     reader: utf8_read::Reader<File>,
     current_char: char,
 }
 
 impl Source for FileSource {
     //!FIXME: this is bad xD
-    fn get_next_char(&mut self) -> Result<char, ReadError> {
+    fn get_next_char(&mut self) -> Result<char, ErrorKind> {
        match self.reader.next_char() {
             Ok(ch) => {
                 match ch {
                     utf8_read::Char::Eof => Ok(3 as char),
                     utf8_read::Char::NoData => Ok(3 as char),
                     utf8_read::Char::Char(read_char) => {
-                        self.current_pos += 1;
                         self.current_char = read_char;
                         Ok(read_char)},
                 }
             }
-            Err(e) => Err(ReadError::ReadingError(Box::new(e))),
+            Err(e) => match e {
+                utf8_read::Error::IoError(e) => Err(ErrorKind::IoError(e.to_string())), 
+                utf8_read::Error::MalformedUtf8(p, c) => Err(ErrorKind::MalformedUtf8 { position: p.byte(), bad_utf: c }),
+            },
        }
     }
 
     fn current_position(&self) -> u64 {
-        self.current_pos
+        self.current_pos.byte() as u64
     }
 }
 
@@ -44,11 +45,14 @@ impl FileSource {
         let f = File::open(filename);
         match f {
             Err(e) => Err(Box::new(e)),
-            Ok(file) => Ok(FileSource{
-                current_pos: 0,
-                reader: Reader::new(file),
+            Ok(file) => {
+            let reader = Reader::new(file);
+            let pos = *reader.borrow_pos();    
+            Ok(FileSource{
+                reader: reader,
+                current_pos: pos,
                 current_char: '\0',
-            })
+            }) }
         }
     }
 
@@ -61,7 +65,7 @@ pub struct TestSource {
 
 impl Source for TestSource {
     //!FIXME: this is bad xD
-    fn get_next_char(&mut self) -> Result<char, ReadError> {
+    fn get_next_char(&mut self) -> Result<char, ErrorKind> {
         match self.text.chars().nth(self.pos) {
             Some(c) => {
                 self.pos += c.len_utf8();
