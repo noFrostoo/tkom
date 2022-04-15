@@ -24,19 +24,18 @@ struct Lexer {
 impl TLexer for Lexer {
     fn get_next_token(&mut self) -> Result<Token, ErrorKind> {
         self.skip_whitespace();
-        // new line is new lione 
 
         if self.current_char == ETX{
             return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::EndOfFile));
         }
         
         let res = self.try_tokenize_ident_or_keyword().
-            or_else(|_| self.try_build_operator()).
-            or_else(|_| self.try_build_comment()).
-            or_else(|_| self.try_build_string()).
-            or_else(|_| self.try_build_number());
+            or_else(|| self.try_build_operator()).
+            or_else(|| self.try_build_comment()).
+            or_else(|| self.try_build_string()).
+            or_else(|| self.try_build_number());
 
-        ErrorHandler::handle_result(res)
+        ErrorHandler::handle_result_option(res)
     }
 
     fn get_current_token(&self) -> Token {
@@ -79,9 +78,9 @@ fn get_next_char(&mut self) -> char {
 }
 
 
-fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, ErrorKind> {
+fn try_tokenize_ident_or_keyword(&mut self) -> Option<Result<Token, ErrorKind>> {
     if !self.current_char.is_alphabetic() {
-        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char.clone(), expected: String::from("a,b,.."), position: self.pos.clone() });
+        return None
     }
 
     let mut value: VecDeque<char> = VecDeque::new();
@@ -93,23 +92,23 @@ fn try_tokenize_ident_or_keyword(&mut self) -> Result<Token, ErrorKind> {
     }
 
     if len > MAX_IDENT_LEN {
-        return Err(ErrorKind::MaxIdentLenExceeded{position: self.pos.clone()});
+        return Some(Err(ErrorKind::MaxIdentLenExceeded{position: self.pos.clone()}));
     }
 
     let word = String::from_iter(value);
 
     match word.as_str() {
-        "while" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::While)),
-        "return" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Return)),
-        "if" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::If)),
-        "else" =>Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Else)),
-        "or" => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Or)),
-        "and" =>Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::And)),
-        _ => Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Identifier(word)))
+        "while" => Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::While))),
+        "return" => Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Return))),
+        "if" => Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::If))),
+        "else" =>Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Else))),
+        "or" => Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Or))),
+        "and" =>Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::And))),
+        _ => Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Identifier(word))))
     }   
 }
 
-fn try_build_operator(&mut self) -> Result<Token, ErrorKind>{
+fn try_build_operator(&mut self) -> Option<Result<Token, ErrorKind>>{
     match self.current_char {
         '>' => {
             self.next_second_char_is('=',TokenKind::GraterEqualThen, TokenKind::GraterThen, false)
@@ -146,49 +145,49 @@ fn try_build_operator(&mut self) -> Result<Token, ErrorKind>{
         },
         '{' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LeftBracket))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LeftBracket)))
         },
         '}' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::RightBracket))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::RightBracket)))
         },
         '(' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LeftParentheses))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::LeftParentheses)))
         },
         ')' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::RightParentheses))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::RightParentheses)))
         },
         '.' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comma))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comma)))
         },
         ';' => {
             self.get_next_char();
-            Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Semicolon))
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Semicolon)))
         },
-        _ => Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("<, >, |, &, =, !, +, -, /, %"), position: self.pos.clone() }),
+        _ => return None,
     }
 }
 
-fn next_second_char_is(&mut self, ch: char, if_is: TokenKind, if_not: TokenKind, if_not_err: bool) -> Result<Token, ErrorKind> {
+fn next_second_char_is(&mut self, ch: char, if_is: TokenKind, if_not: TokenKind, if_not_err: bool) -> Option<Result<Token, ErrorKind>> {
     self.get_next_char();
 
     if self.current_char == '=' {
         self.get_next_char();
-        return Ok(Token::new(self.source.current_position(), self.pos.clone(), if_is))
+        return Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), if_is)))
     } else if if_not_err {
         self.get_next_char();
-        return Err(ErrorKind::UnexpectedCharacter { actual: ch, expected: String::from(ch), position: self.pos.clone() })
+        return Some(Err(ErrorKind::UnexpectedCharacter { actual: ch, expected: String::from(ch), position: self.pos.clone() }))
     }
 
-    Ok(Token::new(self.source.current_position(), self.pos.clone(), if_not))
+    Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), if_not)))
 }
 
-fn try_build_comment(&mut self) -> Result<Token, ErrorKind> {
+fn try_build_comment(&mut self) -> Option<Result<Token, ErrorKind>> {
     if self.current_char != '#' {
-        return  Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("#"), position: self.pos.clone() });
+        return None
     }
 
     let mut value: VecDeque<char> = VecDeque::new(); 
@@ -201,7 +200,7 @@ fn try_build_comment(&mut self) -> Result<Token, ErrorKind> {
 
     let word = String::from_iter(value);
 
-    Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comment(word)))
+    Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comment(word))))
 }
 
 fn check_new_line(&mut self) -> bool {
@@ -242,14 +241,13 @@ fn check_new_line(&mut self) -> bool {
     false
 }
 
-fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
+fn try_build_number(&mut self) -> Option<Result<Token, ErrorKind>> {
     if !self.current_char.is_digit(10) {
-        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
+        return None
     }
 
     let mut num: i64 = 0;
     let mut frac_part_len: u32 = 0;
-
 
     if self.current_char != '0' {
         while self.current_char.is_digit(10) {
@@ -270,15 +268,15 @@ fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
     }
 
     if self.current_char.is_digit(10) || self.current_char == '.' || self.current_char.is_alphabetic() {
-        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() });
+        return Some(Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() }));
     }
     //? CHANGE
-    Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Decimal::new(num, frac_part_len))))
+    Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Decimal::new(num, frac_part_len)))))
 }
 
-fn try_build_string(&mut self) -> Result<Token, ErrorKind> {
+fn try_build_string(&mut self) -> Option<Result<Token, ErrorKind>> {
     if self.current_char != '"' && self.current_char != '\'' {
-        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("\", '"), position: self.pos.clone() });
+        return None
     }
 
     let opening_char = self.current_char;
@@ -298,7 +296,7 @@ fn try_build_string(&mut self) -> Result<Token, ErrorKind> {
                 '0' => value.push_back('\0'),
                 '"' => value.push_back('"'),
                 '\'' => value.push_back('\''),
-                _ => return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("n,r,t,\\,0,"), position: self.pos.clone() })
+                _ => return Some(Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("n,r,t,\\,0,"), position: self.pos.clone() }))
             }
         } else {
             value.push_back(self.current_char);
@@ -308,14 +306,14 @@ fn try_build_string(&mut self) -> Result<Token, ErrorKind> {
     }
 
     if self.current_char != opening_char {
-        return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from(opening_char), position: self.pos.clone() });
+        return Some(Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from(opening_char), position: self.pos.clone() }));
     } else {
         self.get_next_char();
     }
 
     let word = String::from_iter(value);
 
-    Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::QuotedString(word)))
+    Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::QuotedString(word))))
 }
 
 }

@@ -11,6 +11,7 @@ pub enum ErrorKind {
     MalformedUtf8{position: usize, bad_utf: usize},
     IoError(String),
     MaxIdentLenExceeded{position: Position},
+    NoToken
 }
 
 // pub enum Error {
@@ -39,6 +40,17 @@ impl ErrorHandler {
         }
     }
 
+    pub fn handle_result_option<T>(res: Option<Result<T, ErrorKind>>) -> Result<T, ErrorKind> {
+        match res {
+            Some(v) => match v {
+                Ok(token) => Ok(token),
+                Err(err) => { Self::handle_error(err.clone()); Err(err)},
+            },
+            
+            None => Err(ErrorKind::NoToken),
+        }
+    }
+
     fn handle_error(err: ErrorKind) {
         let msg = match err {
             ErrorKind::UnexpectedCharacter { actual, expected, position } => {
@@ -62,6 +74,9 @@ impl ErrorHandler {
             },
             ErrorKind::MaxIdentLenExceeded { position } => {
                 format!("Max ident length exceeded at line: {} column: {}",  position.line, position.column)
+            },
+            ErrorKind::NoToken => {
+                format!("No token created")
             },
         };
         eprintln!("{}", msg);
