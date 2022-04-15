@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::{types::{Token, TokenKind, Position, Number}, file_handler::Source, errors::{ErrorKind, ErrorHandler}};
+use rust_decimal::Decimal;
+
+use crate::{types::{Token, TokenKind, Position}, file_handler::Source, errors::{ErrorKind, ErrorHandler}};
 
 const ETX: char = 3 as char;
 const MAX_IDENT_LEN: u32 = 5000;
@@ -245,13 +247,13 @@ fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
         return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("number"), position: self.pos.clone() });
     }
 
-    let mut int_part: u64 = 0;
-    let mut frac_part: u64 = 0;
-    let mut frac_part_len: u64 = 0;
+    let mut num: i64 = 0;
+    let mut frac_part_len: u32 = 0;
+
 
     if self.current_char != '0' {
         while self.current_char.is_digit(10) {
-            int_part = int_part * 10 + self.current_char as u64 - '0' as u64;
+            num = num * 10 + self.current_char as i64 - '0' as i64;
             self.get_next_char();
         }
     } else {
@@ -261,7 +263,7 @@ fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
     if self.current_char == '.' {
         self.get_next_char();
         while self.current_char.is_digit(10) {
-            frac_part = frac_part * 10 + self.current_char as u64 - '0' as u64;
+            num = num * 10 + self.current_char as i64 - '0' as i64;
             frac_part_len += 1;
             self.get_next_char();
         }
@@ -271,7 +273,7 @@ fn try_build_number(&mut self) -> Result<Token, ErrorKind> {
         return Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() });
     }
     //? CHANGE
-    Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Number::new(int_part, frac_part, frac_part_len))))
+    Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Decimal::new(num, frac_part_len))))
 }
 
 fn try_build_string(&mut self) -> Result<Token, ErrorKind> {
@@ -385,7 +387,9 @@ mod test {
             }
         };
     }
-    use crate::{file_handler, types::{TokenKind, Number}};
+    use rust_decimal_macros::dec;
+
+    use crate::{file_handler, types::{TokenKind}};
 
     use super::{Lexer, TLexer};
 
@@ -418,9 +422,9 @@ mod test {
     tokenize_token!(string2_tokenize_test, "    'aaaaa'    ", TokenKind::QuotedString(String::from("aaaaa")));
     tokenize_token!(string3_tokenize_test, "    'aa\taaa'    ", TokenKind::QuotedString(String::from("aa\taaa")));
     tokenize_token!(FAIL: string4_tokenize_test, "    'aaaaa    ");
-    tokenize_token!(number_tokenize_test, "    2137    ", TokenKind::Number(Number::new(2137, 0, 0)));
-    tokenize_token!(number2_tokenize_test, "    2137.420    ", TokenKind::Number(Number::new(2137, 420, 3)));
-    tokenize_token!(number3_tokenize_test, "    0.4    ", TokenKind::Number(Number::new(0, 4, 1)));
+    tokenize_token!(number_tokenize_test, "    2137    ", TokenKind::Number(dec!(2137)));
+    tokenize_token!(number2_tokenize_test, "    2137.420    ", TokenKind::Number(dec!(2137.420)));
+    tokenize_token!(number3_tokenize_test, "    0.4    ", TokenKind::Number(dec!(0.4)));
     /*
     ! allow for 0000.4 ?????????
     */

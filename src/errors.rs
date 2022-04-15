@@ -1,10 +1,12 @@
-use crate::types::{Position, Number};
+use rust_decimal::Decimal;
+
+use crate::types::{Position};
 use std::{process::exit};
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
     UnexpectedCharacter { actual: char, expected: String, position: Position },
-    BadNumber { number: Number, zero_count: u32, position: Position }, // second one is bad zero count
+    BadNumber { number: Decimal, zero_count: u32, position: Position }, // second one is bad zero count
     UnexpectedEOF{position: Position},
     MalformedUtf8{position: usize, bad_utf: usize},
     IoError(String),
@@ -46,7 +48,7 @@ impl ErrorHandler {
                 if zero_count > 0 {
                     format!("Number can't start with a zero, at line {}, column {}", position.line, position.column)    
                 } else {
-                    format!("Bad number literal {} at line {}, column {}", number.format(), position.line, position.column)
+                    format!("Bad number literal {} at line {}, column {}", number.to_string(), position.line, position.column)
                 }
             },
             ErrorKind::UnexpectedEOF { position } => {

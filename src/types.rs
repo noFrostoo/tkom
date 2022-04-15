@@ -1,3 +1,5 @@
+use rust_decimal::Decimal;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Position {
     //byte offset from begin of the file 
@@ -42,29 +44,9 @@ impl Position {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Number {
-    integer_part: u64,
-    decimal_part: u64,
-    decimal_part_len: u64,
-}
-
-impl Number {
-    pub fn new(integer_part: u64, decimal_part: u64, decimal_part_len: u64) -> Self { Self { integer_part, decimal_part, decimal_part_len } }
-    
-    pub fn format(&self) -> String {
-        if self.decimal_part_len > 0 {
-            format!("{}.{}", self.integer_part, self.decimal_part/self.decimal_part_len)
-        } else {
-            format!("{}", self.integer_part)
-        }
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum TokenKind {
-    Number(Number),
+    Number(Decimal),
     Identifier(String),
     QuotedString(String), //? can this work like this or do i need to have string and quotation mark as different token kinds 
     Comment(String),
