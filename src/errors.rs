@@ -1,5 +1,5 @@
-use crate::types::{Token, Position, Number};
-use std::{process::exit, io::Error};
+use crate::types::{Position, Number};
+use std::{process::exit};
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
@@ -7,7 +7,8 @@ pub enum ErrorKind {
     BadNumber { number: Number, zero_count: u32, position: Position }, // second one is bad zero count
     UnexpectedEOF{position: Position},
     MalformedUtf8{position: usize, bad_utf: usize},
-    IoError(String)
+    IoError(String),
+    MaxIdentLenExceeded{position: Position},
 }
 
 // pub enum Error {
@@ -56,6 +57,9 @@ impl ErrorHandler {
             },
             ErrorKind::IoError(msg) => {
                 format!("IO error: {}", msg)
+            },
+            ErrorKind::MaxIdentLenExceeded { position } => {
+                format!("Max ident length exceeded at line: {} column: {}",  position.line, position.column)
             },
         };
         eprintln!("{}", msg);

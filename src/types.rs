@@ -45,7 +45,7 @@ impl Position {
 pub struct Number {
     integer_part: u64,
     decimal_part: u64,
-    decimal_part_len: u64
+    decimal_part_len: u64,
 }
 
 impl Number {
