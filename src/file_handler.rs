@@ -1,4 +1,4 @@
-use std::{fs::File, error::Error};
+use std::{fs::File, io::Error};
 use utf8_read::{Reader, StreamPosition};
 
 use crate::errors::ErrorKind;
@@ -15,7 +15,6 @@ pub struct FileSource {
 }
 
 impl Source for FileSource {
-    //!FIXME: this is bad xD
     fn get_next_char(&mut self) -> Result<char, ErrorKind> {
        match self.reader.next_char() {
             Ok(ch) => {
@@ -41,10 +40,10 @@ impl Source for FileSource {
 
 
 impl FileSource {
-    pub fn new(filename: String) -> Result<FileSource, Box<dyn Error>> {
+    pub fn new(filename: String) -> Result<FileSource, Error> {
         let f = File::open(filename);
         match f {
-            Err(e) => Err(Box::new(e)),
+            Err(e) => Err(e),
             Ok(file) => {
             let reader = Reader::new(file);
             let pos = *reader.borrow_pos();    
@@ -64,7 +63,6 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    //!FIXME: this is bad xD
     fn get_next_char(&mut self) -> Result<char, ErrorKind> {
         match self.text.chars().nth(self.pos) {
             Some(c) => {

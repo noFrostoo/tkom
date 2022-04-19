@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque};
 
 use rust_decimal::Decimal;
 
@@ -6,15 +6,18 @@ use crate::{types::{Token, TokenKind, Position}, file_handler::Source, errors::{
 
 const ETX: char = 3 as char;
 const MAX_IDENT_LEN: u32 = 5000;
+const LF: char = 10 as char;
+const CR: char = 13 as char;
+const RS: char = 30 as char;
 
 pub trait TLexer {
-    fn get_next_token(&mut self) -> Result<Token, ErrorKind>;
+    fn get_next_token(&mut self) -> Option<Result<Token, ErrorKind>>;
     fn get_current_token(&self) -> Token;
     fn get_position(&self) -> Position;
 }
 
 
-struct Lexer {
+pub struct Lexer {
     pos: Position,
     current_char: char,
     token: Token,
@@ -22,28 +25,48 @@ struct Lexer {
 }
 
 impl TLexer for Lexer {
-    fn get_next_token(&mut self) -> Result<Token, ErrorKind> {
+    fn get_next_token(&mut self) -> Option<Result<Token, ErrorKind>> {
         self.skip_whitespace();
-
+    
         if self.current_char == ETX{
-            return Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::EndOfFile));
+            return None
         }
-        
+            
         let res = self.try_tokenize_ident_or_keyword().
-            or_else(|| self.try_build_operator()).
-            or_else(|| self.try_build_comment()).
-            or_else(|| self.try_build_string()).
-            or_else(|| self.try_build_number());
+                or_else(|| self.try_build_operator()).
+                or_else(|| self.try_build_comment()).
+                or_else(|| self.try_build_string()).
+                or_else(|| self.try_build_number());
+            
 
-        ErrorHandler::handle_result_option(res)
+        match res {
+            Some(v) => match v {
+                Ok(token) => { self.token = token.clone(); Some(Ok(token))},
+                Err(err) => { ErrorHandler::report_error(err.clone()); return Some(Err(err))},
+            },
+            None => {
+                let err= ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from(""), position: self.pos.clone()};
+                self.get_next_char();
+                ErrorHandler::report_error(err.clone()); 
+                Some(Err(err))
+            } 
+        }
+        }
+    
+        fn get_current_token(&self) -> Token {
+            self.token.clone()
+        }
+    
+        fn get_position(&self) -> Position {
+            self.pos.clone()
+        }
     }
 
-    fn get_current_token(&self) -> Token {
-        self.token.clone()
-    }
+impl Iterator for Lexer {
+    type Item = Result<Token, ErrorKind>;
 
-    fn get_position(&self) -> Position {
-        self.pos.clone()
+    fn next(&mut self) -> Option<Self::Item> {
+        self.get_next_token()
     }
 }
 
@@ -161,6 +184,10 @@ fn try_build_operator(&mut self) -> Option<Result<Token, ErrorKind>>{
         },
         '.' => {
             self.get_next_char();
+            Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Dot)))
+        },
+        ',' => {
+            self.get_next_char();
             Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Comma)))
         },
         ';' => {
@@ -204,10 +231,10 @@ fn try_build_comment(&mut self) -> Option<Result<Token, ErrorKind>> {
 }
 
 fn check_new_line(&mut self) -> bool {
-    if self.current_char == 10 as char{
+    if self.current_char == LF as char{
         let ch = self.get_next_char();
 
-        if ch == 13 as char {
+        if ch == CR as char {
             self.get_next_char();
             self.pos.new_line(2);
             return true
@@ -217,10 +244,10 @@ fn check_new_line(&mut self) -> bool {
         return true
     }
 
-    if self.current_char == 13 as char {
+    if self.current_char == LF as char {
         let ch = self.get_next_char();
 
-        if ch == 10 as char {
+        if ch == CR as char {
             self.get_next_char();
 
             self.pos.new_line(2);
@@ -231,7 +258,7 @@ fn check_new_line(&mut self) -> bool {
         return true
     }
 
-    if self.current_char == 30 as char {
+    if self.current_char == RS as char {
         self.get_next_char();
 
         self.pos.new_line(1);
@@ -270,7 +297,6 @@ fn try_build_number(&mut self) -> Option<Result<Token, ErrorKind>> {
     if self.current_char.is_digit(10) || self.current_char == '.' || self.current_char.is_alphabetic() {
         return Some(Err(ErrorKind::UnexpectedCharacter { actual: self.current_char, expected: String::from("a number"), position: self.pos.clone() }));
     }
-    //? CHANGE
     Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::Number(Decimal::new(num, frac_part_len)))))
 }
 
@@ -315,9 +341,7 @@ fn try_build_string(&mut self) -> Option<Result<Token, ErrorKind>> {
 
     Some(Ok(Token::new(self.source.current_position(), self.pos.clone(), TokenKind::QuotedString(word))))
 }
-
 }
-
 #[cfg(test)]
 mod test {
     macro_rules! tokenize_token {
@@ -328,7 +352,7 @@ mod test {
     
                 let test_source = file_handler::TestSource::new(String::from(text), 0);
                 let mut lexer = Lexer::new(Box::new(test_source));
-                assert!(lexer.get_next_token().is_err())
+                assert!(lexer.get_next_token().unwrap().is_err())
             }
         };
         ($name:ident, $text:expr, $token:expr) => {
@@ -339,7 +363,7 @@ mod test {
     
                 let test_source = file_handler::TestSource::new(String::from(text), 0);
                 let mut lexer = Lexer::new(Box::new(test_source));
-                match lexer.get_next_token() {
+                match lexer.get_next_token().unwrap() {
                     Ok(ch) => assert_eq!(ch.kind, should_be),
                     Err(_) => panic!()
                 }
@@ -360,7 +384,7 @@ mod test {
                         assert!(lexer.get_next_token().is_err())
                     } else {
                         let should_be: TokenKind = $token;
-                        match lexer.get_next_token() {
+                        match lexer.get_next_token().unwrap() {
                             Ok(ch) => assert_eq!(ch.kind, should_be),
                             Err(_) => panic!()
                         }
@@ -377,7 +401,7 @@ mod test {
 
                 $(
                     let should_be: TokenKind = $token;
-                    match lexer.get_next_token() {
+                    match lexer.get_next_token().unwrap() {
                         Ok(ch) => assert_eq!(ch.kind, should_be),
                         Err(_) => panic!()
                     }

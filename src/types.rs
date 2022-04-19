@@ -60,6 +60,7 @@ pub enum TokenKind {
     LeftParentheses,
     RightParentheses,
     Comma,
+    Dot,
     // relation operators
     GraterThen,
     LessThen,
@@ -100,6 +101,12 @@ pub struct Token {
     pub position: Position,
     /// What kind of token is this?
     pub kind: TokenKind,
+}
+
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TOKEN: kind: {:?}, pos: line: {}, column: {}, offset: {} \n", self.kind, self.position.line, self.position.column, self.offset)
+    }
 }
 
 impl Token {

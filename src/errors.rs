@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 
 use crate::types::{Position};
-use std::{process::exit};
+use std::{process::exit, io::Error};
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
@@ -11,15 +11,8 @@ pub enum ErrorKind {
     MalformedUtf8{position: usize, bad_utf: usize},
     IoError(String),
     MaxIdentLenExceeded{position: Position},
-    NoToken
+    NoToken,
 }
-
-// pub enum Error {
-//     Lexical(ErrorKind, Token, Position, String),
-//     Semantical(Token, Position, String),
-//     Syntactic(Token, Position, String),
-//     RunTime
-// }
 
 pub struct ErrorHandler;
 
@@ -33,22 +26,9 @@ impl ErrorHandler {
         exit(1);
     }
 
-    pub fn handle_result<T>(res: Result<T, ErrorKind>) -> Result<T, ErrorKind> {
-        match res {
-            Ok(v) => Ok(v),
-            Err(err) => { Self::handle_error(err.clone()); Err(err)},
-        }
-    }
-
-    pub fn handle_result_option<T>(res: Option<Result<T, ErrorKind>>) -> Result<T, ErrorKind> {
-        match res {
-            Some(v) => match v {
-                Ok(token) => Ok(token),
-                Err(err) => { Self::handle_error(err.clone()); Err(err)},
-            },
-            
-            None => Err(ErrorKind::NoToken),
-        }
+    pub fn io_error(err: Error) -> ! {
+        eprintln!("Error opening the file: {}", err);
+        exit(2);
     }
 
     fn handle_error(err: ErrorKind) {
