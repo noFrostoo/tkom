@@ -1,6 +1,6 @@
 use errors::{ErrorHandler};
 use file_handler::FileSource;
-use lexer::{Lexer, TLexer};
+use lexer::{Lexer};
 
 pub mod file_handler;
 mod types;

@@ -8,20 +8,13 @@ pub struct Position {
     pub column: u64,
 }
 
-/*
-!  How to track white space, create new pos and move it along
-! or just create pos on token creation, and keep position in lexer
-! i can keep posion in lexer and on token creation just make a copy, but that will point to end of the token not beging  
-*/
-
-//TODO: refactor s,l,c names
 impl Position {
     pub fn new(offset:u64, line:u64, column:u64) -> Position {
         Position { offset: (offset), line: (line), column: (column) }
     }
 
     pub fn zero() -> Position {
-        Position { offset: (0), line: (0), column: (0) }
+        Position { offset: (0), line: (1), column: (1) }
     }
 
     pub fn move_pos(&mut self, offset:u64, line:u64, column:u64) {
@@ -87,8 +80,6 @@ pub enum TokenKind {
     ModuloAssignment,
 
     Semicolon,
-
-    EndOfFile,
     Unknown,
 }
 

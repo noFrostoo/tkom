@@ -83,7 +83,9 @@ pub fn new(source: Box<dyn Source>) -> Lexer {
 
 fn skip_whitespace(&mut self) {
     while self.current_char.is_whitespace() {
-        self.get_next_char();
+        if ! self.check_new_line() {
+            self.get_next_char();
+        }
     }
 }
 

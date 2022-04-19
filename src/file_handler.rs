@@ -23,6 +23,7 @@ impl Source for FileSource {
                     utf8_read::Char::NoData => Ok(3 as char),
                     utf8_read::Char::Char(read_char) => {
                         self.current_char = read_char;
+                        self.current_pos = *self.reader.borrow_pos();
                         Ok(read_char)},
                 }
             }
