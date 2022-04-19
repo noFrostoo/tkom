@@ -439,7 +439,8 @@ mod test {
     tokenize_token!(close_bracket_tokenize_test, "   }   ", TokenKind::RightBracket);
     tokenize_token!(open_parentheses_tokenize_test, "   (   ", TokenKind::LeftParentheses);
     tokenize_token!(close_parentheses_tokenize_test, "   )   ", TokenKind::RightParentheses);
-    tokenize_token!(comma_tokenize_test, "   .   ", TokenKind::Comma);
+    tokenize_token!(comma_tokenize_test, "   ,   ", TokenKind::Comma);
+    tokenize_token!(dot_tokenize_test, "   .   ", TokenKind::Dot);
     tokenize_token!(comment_tokenize_test, "    #aaaaa    ", TokenKind::Comment(String::from("aaaaa    ")));
     tokenize_token!(comment_newline_tokenize_test, "    #aaaaa\n    ", TokenKind::Comment(String::from("aaaaa")));
     tokenize_token!(string_tokenize_test, "    \"aaaaa\"    ", TokenKind::QuotedString(String::from("aaaaa")));
@@ -461,7 +462,7 @@ mod test {
     tokenize_token!(FAIL: bad_number5_test, "    1aaa    ");
     tokenize_multiple_tokens!(tokenize_multiple, "while\n { \n\n\n } ...!!!", 
     TokenKind::While, TokenKind::LeftBracket, TokenKind::RightBracket,
-    TokenKind::Comma, TokenKind::Comma, TokenKind::Comma, 
+    TokenKind::Dot, TokenKind::Dot, TokenKind::Dot, 
     TokenKind::Not, TokenKind::Not, TokenKind::Not);
     tokenize_multiple_tokens!(tokenize_multiple2, "<<= \n\n! \n\n== >=", 
     TokenKind::LessThen, TokenKind::LessEqualThen, TokenKind::Not,
@@ -471,6 +472,6 @@ mod test {
     TokenKind::Identifier(String::from("main")), TokenKind::LeftParentheses, TokenKind::RightParentheses, TokenKind::LeftBracket,
     TokenKind::Identifier(String::from("eee")), TokenKind::Assignment, TokenKind::Identifier(String::from("Object")),
     TokenKind::LeftParentheses, TokenKind::RightParentheses, TokenKind::Semicolon,
-    TokenKind::Identifier(String::from("aaa")), TokenKind::Comma, TokenKind::Identifier(String::from("Gol")),
+    TokenKind::Identifier(String::from("aaa")), TokenKind::Dot, TokenKind::Identifier(String::from("Gol")),
     TokenKind::Assignment, TokenKind::QuotedString(String::from("bebe")), TokenKind::Semicolon, TokenKind::RightBracket);
 }
