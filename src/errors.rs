@@ -1,5 +1,3 @@
-use rust_decimal::Decimal;
-
 use crate::types::Position;
 use std::{io::Error, process::exit};
 
@@ -10,11 +8,6 @@ pub enum ErrorKind {
         expected: String,
         position: Position,
     },
-    BadNumber {
-        number: Decimal,
-        zero_count: u32,
-        position: Position,
-    }, // second one is bad zero count
     UnexpectedEOF {
         position: Position,
     },
@@ -24,6 +17,12 @@ pub enum ErrorKind {
     },
     IoError(String),
     MaxIdentLenExceeded {
+        position: Position,
+    },
+    FractionTooBig {
+        position: Position,
+    },
+    NumberTooBig {
         position: Position,
     },
     NoToken,
@@ -55,25 +54,6 @@ impl ErrorHandler {
             } => {
                 format!("Unexpected character at line: {} column: {}, expected: {}, got: {}, coding: {} ", position.line, position.column, expected, actual, actual as usize)
             }
-            ErrorKind::BadNumber {
-                number,
-                zero_count,
-                position,
-            } => {
-                if zero_count > 0 {
-                    format!(
-                        "Number can't start with a zero, at line {}, column {}",
-                        position.line, position.column
-                    )
-                } else {
-                    format!(
-                        "Bad number literal {} at line {}, column {}",
-                        number.to_string(),
-                        position.line,
-                        position.column
-                    )
-                }
-            }
             ErrorKind::UnexpectedEOF { position } => {
                 format!(
                     "Unexpected eof at line: {} column: {}",
@@ -94,6 +74,18 @@ impl ErrorHandler {
             }
             ErrorKind::NoToken => {
                 format!("No token created")
+            }
+            ErrorKind::FractionTooBig { position } => {
+                format!(
+                    "Fraction too bit at line: {} column: {}",
+                    position.line, position.column
+                )
+            }
+            ErrorKind::NumberTooBig { position } => {
+                format!(
+                    "Number too bit at line: {} column: {}",
+                    position.line, position.column
+                )
             }
         };
         eprintln!("{}", msg);

@@ -371,11 +371,13 @@ impl Lexer {
         }
 
         let mut num: i64 = 0;
+        let mut num_len: u32 = 0;
         let mut frac_part_len: u32 = 0;
 
         if self.current_char != '0' {
             while self.current_char.is_digit(10) {
                 num = num * 10 + self.current_char as i64 - '0' as i64;
+                num_len += 1;
                 self.get_next_char();
             }
         } else {
@@ -387,8 +389,21 @@ impl Lexer {
             while self.current_char.is_digit(10) {
                 num = num * 10 + self.current_char as i64 - '0' as i64;
                 frac_part_len += 1;
+                num_len += 1;
                 self.get_next_char();
             }
+        }
+
+        if num_len > 64 {
+            return Some(Err(ErrorKind::NumberTooBig {
+                position: self.pos.clone(),
+            }));
+        }
+
+        if frac_part_len > 28 {
+            return Some(Err(ErrorKind::FractionTooBig {
+                position: self.pos.clone(),
+            }));
         }
 
         if self.current_char.is_digit(10)
@@ -417,7 +432,10 @@ impl Lexer {
         let mut value: VecDeque<char> = VecDeque::new();
 
         self.get_next_char();
-        while self.current_char != ETX && self.current_char != opening_char {
+        while self.current_char != ETX
+            && self.current_char != opening_char
+            && !self.check_new_line()
+        {
             value.push_back(self.current_char);
             self.get_next_char();
         }
@@ -607,11 +625,12 @@ mod test {
     );
     tokenize_token!(
         string3_tokenize_test,
-        "    'a\ra\\a\ta\naa'    ",
-        TokenKind::QuotedString(String::from("a\ra\\a\ta\naa"))
+        "    'a\ra\\a\taaa'    ",
+        TokenKind::QuotedString(String::from("a\ra\\a\taaa"))
     );
     tokenize_token!(FAIL: string4_tokenize_test, "    'aaaaa    ");
     tokenize_token!(FAIL: string5_tokenize_test, "    \"aaaaa    ");
+    tokenize_token!(FAIL: string6_tokenize_test, "    'aaa\naa'    ");
     tokenize_token!(
         number_tokenize_test,
         "    2137    ",
