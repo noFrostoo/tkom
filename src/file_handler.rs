@@ -16,22 +16,24 @@ pub struct FileSource {
 
 impl Source for FileSource {
     fn get_next_char(&mut self) -> Result<char, ErrorKind> {
-       match self.reader.next_char() {
-            Ok(ch) => {
-                match ch {
-                    utf8_read::Char::Eof => Ok(3 as char),
-                    utf8_read::Char::NoData => Ok(3 as char),
-                    utf8_read::Char::Char(read_char) => {
-                        self.current_char = read_char;
-                        self.current_pos = *self.reader.borrow_pos();
-                        Ok(read_char)},
+        match self.reader.next_char() {
+            Ok(ch) => match ch {
+                utf8_read::Char::Eof => Ok(3 as char),
+                utf8_read::Char::NoData => Ok(3 as char),
+                utf8_read::Char::Char(read_char) => {
+                    self.current_char = read_char;
+                    self.current_pos = *self.reader.borrow_pos();
+                    Ok(read_char)
                 }
-            }
-            Err(e) => match e {
-                utf8_read::Error::IoError(e) => Err(ErrorKind::IoError(e.to_string())), 
-                utf8_read::Error::MalformedUtf8(p, c) => Err(ErrorKind::MalformedUtf8 { position: p.byte(), bad_utf: c }),
             },
-       }
+            Err(e) => match e {
+                utf8_read::Error::IoError(e) => Err(ErrorKind::IoError(e.to_string())),
+                utf8_read::Error::MalformedUtf8(p, c) => Err(ErrorKind::MalformedUtf8 {
+                    position: p.byte(),
+                    bad_utf: c,
+                }),
+            },
+        }
     }
 
     fn current_position(&self) -> u64 {
@@ -39,28 +41,27 @@ impl Source for FileSource {
     }
 }
 
-
 impl FileSource {
     pub fn new(filename: String) -> Result<FileSource, Error> {
         let f = File::open(filename);
         match f {
             Err(e) => Err(e),
             Ok(file) => {
-            let reader = Reader::new(file);
-            let pos = *reader.borrow_pos();    
-            Ok(FileSource{
-                reader: reader,
-                current_pos: pos,
-                current_char: '\0',
-            }) }
+                let reader = Reader::new(file);
+                let pos = *reader.borrow_pos();
+                Ok(FileSource {
+                    reader: reader,
+                    current_pos: pos,
+                    current_char: '\0',
+                })
+            }
         }
     }
-
 }
 
 pub struct TestSource {
     text: String,
-    pos: usize
+    pos: usize,
 }
 
 impl Source for TestSource {
@@ -69,8 +70,8 @@ impl Source for TestSource {
             Some(c) => {
                 self.pos += c.len_utf8();
                 Ok(c)
-            },
-            _ => Ok(3 as char)
+            }
+            _ => Ok(3 as char),
         }
     }
 
@@ -81,23 +82,20 @@ impl Source for TestSource {
 
 impl TestSource {
     pub fn new(text: String, pos: usize) -> TestSource {
-        TestSource{
-            text,
-            pos
-        }
+        TestSource { text, pos }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{fs::{self}};
+    use std::fs::{self};
 
     use super::{FileSource, Source};
 
     #[test]
     fn basic_read_file() {
         //Will unwrap cuz it's test
-        let data = ['a','a','a','b','b','b'];
+        let data = ['a', 'a', 'a', 'b', 'b', 'b'];
         fs::write("test.txt", "aaabbb").expect("unable to write");
         let mut fs = FileSource::new(String::from("test.txt")).unwrap();
         let mut i = 0;

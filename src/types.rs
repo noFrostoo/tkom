@@ -2,22 +2,30 @@ use rust_decimal::Decimal;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Position {
-    //byte offset from begin of the file 
+    //byte offset from begin of the file
     pub offset: u64,
     pub line: u64,
     pub column: u64,
 }
 
 impl Position {
-    pub fn new(offset:u64, line:u64, column:u64) -> Position {
-        Position { offset: (offset), line: (line), column: (column) }
+    pub fn new(offset: u64, line: u64, column: u64) -> Position {
+        Position {
+            offset: (offset),
+            line: (line),
+            column: (column),
+        }
     }
 
     pub fn zero() -> Position {
-        Position { offset: (0), line: (1), column: (1) }
+        Position {
+            offset: (0),
+            line: (1),
+            column: (1),
+        }
     }
 
-    pub fn move_pos(&mut self, offset:u64, line:u64, column:u64) {
+    pub fn move_pos(&mut self, offset: u64, line: u64, column: u64) {
         self.offset = offset;
         self.line = line;
         self.column = column;
@@ -33,7 +41,6 @@ impl Position {
         self.line += 1;
         self.offset = new_steam_pos;
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,7 +48,7 @@ impl Position {
 pub enum TokenKind {
     Number(Decimal),
     Identifier(String),
-    QuotedString(String), //? can this work like this or do i need to have string and quotation mark as different token kinds 
+    QuotedString(String),
     Comment(String),
     While,
     If,
@@ -85,31 +92,33 @@ pub enum TokenKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
-    /// The token's location relative to the rest of the files being 
+    /// The token's location relative to the rest of the files being
     /// processed in bytes.
     pub offset: u64,
-
     pub position: Position,
-    /// What kind of token is this?
     pub kind: TokenKind,
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TOKEN: kind: {:?}, pos: line: {}, column: {}, offset: {} \n", self.kind, self.position.line, self.position.column, self.offset)
+        write!(
+            f,
+            "TOKEN: kind: {:?}, pos: line: {}, column: {}, offset: {} \n",
+            self.kind, self.position.line, self.position.column, self.offset
+        )
     }
 }
 
 impl Token {
-    /// Create a new token out of a `Span` and something which can be turned 
-    /// into a `TokenKind`.
     pub fn new<K: Into<TokenKind>>(offset: u64, position: Position, kind: K) -> Token {
         let kind = kind.into();
-        Token { offset, position ,kind }
+        Token {
+            offset,
+            position,
+            kind,
+        }
     }
 }
-
-
 
 #[cfg(test)]
 mod test {
@@ -146,7 +155,7 @@ mod test {
         pos.new_char(54);
         assert_eq!(pos.offset, 54);
         assert_eq!(pos.line, LINE);
-        assert_eq!(pos.column, COLUMN+1);
+        assert_eq!(pos.column, COLUMN + 1);
     }
 
     #[test]
@@ -155,9 +164,7 @@ mod test {
         let mut pos = create_pos();
         pos.new_line(2);
         assert_eq!(pos.offset, 2);
-        assert_eq!(pos.line, LINE+1);
+        assert_eq!(pos.line, LINE + 1);
         assert_eq!(pos.column, 0);
     }
-
-
 }
