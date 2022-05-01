@@ -43,6 +43,7 @@ impl Source for FileSource {
 
 impl FileSource {
     pub fn new(filename: String) -> Result<FileSource, Error> {
+        //?  check if correct file open
         let f = File::open(filename);
         match f {
             Err(e) => Err(e),

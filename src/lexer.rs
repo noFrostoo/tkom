@@ -9,7 +9,8 @@ use crate::{
 };
 
 const ETX: char = 3 as char;
-const MAX_IDENT_LEN: u32 = 5000;
+const MAX_IDENT_LEN: usize = 5000;
+const MAX_STRING_LEN: usize = 447344;
 const LF: char = 10 as char;
 const CR: char = 13 as char;
 const RS: char = 30 as char;
@@ -95,6 +96,7 @@ impl Lexer {
 
     fn skip_whitespace(&mut self) {
         while self.current_char.is_whitespace() {
+            //? move to get_next_char
             if !self.check_new_line() {
                 self.get_next_char();
             }
@@ -106,6 +108,7 @@ impl Lexer {
             Ok(read_char) => {
                 self.current_char = read_char;
                 self.pos.new_char(self.source.current_position());
+                //? add new line check
                 read_char
             }
             Err(e) => {
@@ -120,17 +123,15 @@ impl Lexer {
         }
 
         let mut value: VecDeque<char> = VecDeque::new();
-        let mut len = 0;
-        while self.current_char.is_alphanumeric() && len <= MAX_IDENT_LEN {
+        while self.current_char.is_alphanumeric() {
+            if value.len() == MAX_IDENT_LEN {
+                return Some(Err(ErrorKind::MaxLenExceeded {
+                    position: self.pos.clone(),
+                    max_len: MAX_IDENT_LEN,
+                }));
+            }
             value.push_back(self.current_char);
-            len += 1;
             self.get_next_char();
-        }
-
-        if len > MAX_IDENT_LEN {
-            return Some(Err(ErrorKind::MaxIdentLenExceeded {
-                position: self.pos.clone(),
-            }));
         }
 
         let word = String::from_iter(value);
@@ -371,13 +372,15 @@ impl Lexer {
         }
 
         let mut num: i64 = 0;
-        let mut num_len: u32 = 0;
         let mut frac_part_len: u32 = 0;
 
         if self.current_char != '0' {
             while self.current_char.is_digit(10) {
-                num = num * 10 + self.current_char as i64 - '0' as i64;
-                num_len += 1;
+                match self.add_char_number(num) {
+                    Ok(n) => num = n,
+                    Err(e) => return Some(Err(e)),
+                }
+
                 self.get_next_char();
             }
         } else {
@@ -387,23 +390,20 @@ impl Lexer {
         if self.current_char == '.' {
             self.get_next_char();
             while self.current_char.is_digit(10) {
-                num = num * 10 + self.current_char as i64 - '0' as i64;
+                match self.add_char_number(num) {
+                    Ok(n) => num = n,
+                    Err(e) => return Some(Err(e)),
+                }
+
                 frac_part_len += 1;
-                num_len += 1;
                 self.get_next_char();
+
+                if frac_part_len > 28 {
+                    return Some(Err(ErrorKind::FractionTooBig {
+                        position: self.pos.clone(),
+                    }));
+                }
             }
-        }
-
-        if num_len > 64 {
-            return Some(Err(ErrorKind::NumberTooBig {
-                position: self.pos.clone(),
-            }));
-        }
-
-        if frac_part_len > 28 {
-            return Some(Err(ErrorKind::FractionTooBig {
-                position: self.pos.clone(),
-            }));
         }
 
         if self.current_char.is_digit(10)
@@ -416,11 +416,35 @@ impl Lexer {
                 position: self.pos.clone(),
             }));
         }
+
         Some(Ok(Token::new(
             self.source.current_position(),
             self.pos.clone(),
             TokenKind::Number(Decimal::new(num, frac_part_len)),
         )))
+    }
+
+    fn add_char_number(&mut self, num: i64) -> Result<i64, ErrorKind> {
+        let mut number: i64;
+        match num.checked_mul(10) {
+            Some(n) => number = n,
+            None => {
+                return Err(ErrorKind::NumberTooBig {
+                    position: self.pos.clone(),
+                })
+            }
+        }
+
+        match number.checked_add(self.current_char as i64 - '0' as i64) {
+            Some(n) => number = n,
+            None => {
+                return Err(ErrorKind::NumberTooBig {
+                    position: self.pos.clone(),
+                })
+            }
+        }
+
+        Ok(number)
     }
 
     fn try_build_string(&mut self) -> Option<Result<Token, ErrorKind>> {
@@ -432,10 +456,13 @@ impl Lexer {
         let mut value: VecDeque<char> = VecDeque::new();
 
         self.get_next_char();
-        while self.current_char != ETX
-            && self.current_char != opening_char
-            && !self.check_new_line()
-        {
+        while self.current_char != ETX && self.current_char != opening_char {
+            if value.len() == MAX_STRING_LEN {
+                return Some(Err(ErrorKind::MaxLenExceeded {
+                    position: self.pos.clone(),
+                    max_len: MAX_STRING_LEN,
+                }));
+            }
             value.push_back(self.current_char);
             self.get_next_char();
         }
@@ -625,12 +652,11 @@ mod test {
     );
     tokenize_token!(
         string3_tokenize_test,
-        "    'a\ra\\a\taaa'    ",
-        TokenKind::QuotedString(String::from("a\ra\\a\taaa"))
+        "    'a\ra\\a\ta\naa'    ",
+        TokenKind::QuotedString(String::from("a\ra\\a\ta\naa"))
     );
     tokenize_token!(FAIL: string4_tokenize_test, "    'aaaaa    ");
     tokenize_token!(FAIL: string5_tokenize_test, "    \"aaaaa    ");
-    tokenize_token!(FAIL: string6_tokenize_test, "    'aaa\naa'    ");
     tokenize_token!(
         number_tokenize_test,
         "    2137    ",

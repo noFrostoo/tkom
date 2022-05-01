@@ -16,8 +16,9 @@ pub enum ErrorKind {
         bad_utf: usize,
     },
     IoError(String),
-    MaxIdentLenExceeded {
+    MaxLenExceeded {
         position: Position,
+        max_len: usize,
     },
     FractionTooBig {
         position: Position,
@@ -66,10 +67,10 @@ impl ErrorHandler {
             ErrorKind::IoError(msg) => {
                 format!("IO error: {}", msg)
             }
-            ErrorKind::MaxIdentLenExceeded { position } => {
+            ErrorKind::MaxLenExceeded { position, max_len } => {
                 format!(
-                    "Max ident length exceeded at line: {} column: {}",
-                    position.line, position.column
+                    "Max length (max length: {}) exceeded at line: {} column: {}",
+                    max_len, position.line, position.column
                 )
             }
             ErrorKind::NoToken => {
