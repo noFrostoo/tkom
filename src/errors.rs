@@ -32,10 +32,10 @@ pub enum ErrorKind {
         expected_kind: TokenKind,
         got: TokenKind,
     },
-    ObjectExpected{
+    ObjectExpected {
         position: Position,
         got: TokenKind,
-    }
+    },
 }
 
 pub struct ErrorHandler;
@@ -106,13 +106,13 @@ impl ErrorHandler {
                     "Syntax error expected: {:?}, got: {:?} at: {} column: {}",
                     expected_kind, got, position.line, position.column
                 )
-            },
+            }
             ErrorKind::ObjectExpected { position, got } => {
                 format!(
                     "Object expected:  got: {:?} at: {} column: {}",
                     got, position.line, position.column
                 )
-            },
+            }
         };
         eprintln!("{}", msg);
     }
