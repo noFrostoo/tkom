@@ -75,13 +75,15 @@ pub enum Statement {
     Expression(Expression),
     If(If),
     For(For),
-    While(While)
+    While(While),
+    Return(Return)
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum  Expression {
     OrExpression(OrExpression),
     AndExpression(AndExpression),
+    EqualExpression(EqualExpression),
     RelationalExpression(RelationalExpression),
     AdditiveExpression(AdditiveExpression),
     MultiplicativeExpression(MultiplicativeExpression),
@@ -109,6 +111,13 @@ pub struct OrExpression {
 pub struct AndExpression {
     left: Box<Expression>,
     right: Box<Expression> 
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct EqualExpression {
+    left: Box<Expression>,
+    right: Box<Expression>, 
+    operator: EqualOperator
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -156,14 +165,14 @@ pub struct VariableExpression {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct  If {
-    condition: Box<Expression>,
+    condition: Option<Box<Expression>>,
     block:Box<Block>,
-    else_block: Box<Block>
+    else_block: Option<Box<If>>
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct For {
-    name: String, //TODO BETTER NAME
+    iterator: String, 
     object: Box<Expression>,
     block: Box<Block>
 }
@@ -174,9 +183,14 @@ pub struct  While {
     block: Box<Block>
 }
 
-pub const NotOperator: TokenKind = TokenKind::Not;
-pub const OrOperator: TokenKind = TokenKind::Or;
-pub const AndOperator: TokenKind = TokenKind::And;
+#[derive(Clone, PartialEq, Debug)]
+pub struct  Return {
+    expression: Option<Box<Expression>>
+}
+
+pub const NOT_OPERATOR: TokenKind = TokenKind::Not;
+pub const OR_OPERATOR: TokenKind = TokenKind::Or;
+pub const AND_OPERATOR: TokenKind = TokenKind::And;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum AssignmentOperator {
@@ -273,15 +287,13 @@ impl EqualOperator {
 }
 
 pub struct Parser {
-    lexer: Box<dyn TLexer>,
-    functions: VecDeque<Function>
+    lexer: Box<dyn TLexer>
 }
 
 impl Parser { 
     pub fn new(lexer: Box<dyn TLexer>) -> Parser {
         Parser{
             lexer: lexer,
-            functions:  VecDeque::new()
         }
     }
 
@@ -311,7 +323,7 @@ impl Parser {
         let parameters = self.parse_parameters();
 
         if let TokenKind::RightParentheses = self.lexer.get_current_token().kind { self.next_token(); } else {
-            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::LeftParentheses, got: self.lexer.get_current_token().kind }) ;
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
         }
 
         let block = self.parse_block();
@@ -321,13 +333,14 @@ impl Parser {
 
     fn parse_parameters(&mut self) -> VecDeque<Parameter> {
         let mut parameters:VecDeque<Parameter> = VecDeque::new();
-        let pos: u8 = 0;
+        let mut pos: u8 = 0;
 
         match self.lexer.get_current_token().kind {
             TokenKind::Identifier(p) => parameters.push_back(Parameter{name: p, pos: pos}),
             _ => return parameters
         };
 
+        pos += 1;
         self.next_token();
 
         while let TokenKind::Comma = self.lexer.get_current_token().kind {
@@ -338,6 +351,8 @@ impl Parser {
                 _ => return parameters
             };
 
+            pos += 1;
+
             self.next_token();
         }
 
@@ -346,7 +361,7 @@ impl Parser {
 
     fn parse_block(&mut self) -> Block {
         if let TokenKind::LeftBracket = self.lexer.get_current_token().kind { self.next_token(); } else { 
-            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::LeftBracket, got: self.lexer.get_current_token().kind }) ;
         }
 
         let mut statements:VecDeque<Statement> = VecDeque::new();
@@ -355,10 +370,8 @@ impl Parser {
             statements.push_back(stmt);
         }
 
-        self.next_token();
-
         if let TokenKind::RightBracket = self.lexer.get_current_token().kind { self.next_token(); } else {
-            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightBracket, got: self.lexer.get_current_token().kind }) ;
         }
 
         Block { statements: statements }
@@ -366,6 +379,7 @@ impl Parser {
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
         if let Some(expr) = self.try_parse_expression() {
+
             if let TokenKind::Semicolon = self.lexer.get_current_token().kind { self.next_token(); } else {
                 self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::Semicolon, got: self.lexer.get_current_token().kind }) ;
             }
@@ -375,6 +389,23 @@ impl Parser {
 
         if let Some(wh) = self.try_prase_while() {
             return Some(Statement::While(wh))
+        }
+
+        if let Some(fr) = self.try_prase_for() {
+            return Some(Statement::For(fr));
+        }
+
+        if let Some(stmt) = self.try_prase_if() {
+            return Some(Statement::If(stmt));
+        }
+
+        if let Some(ret) = self.try_parse_return() {
+
+            if let TokenKind::Semicolon = self.lexer.get_current_token().kind { self.next_token(); } else {
+                self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::Semicolon, got: self.lexer.get_current_token().kind }) ;
+            }
+
+            return Some(Statement::Return(ret));
         }
 
         None
@@ -392,7 +423,7 @@ impl Parser {
         let cond = self.try_parse_or_expression()?;
 
         if let TokenKind::RightParentheses = self.lexer.get_current_token().kind { self.next_token(); } else {
-            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::LeftParentheses, got: self.lexer.get_current_token().kind }) ;
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
         }
 
         let block = self.parse_block();
@@ -400,6 +431,80 @@ impl Parser {
         Some(While { condition: Box::new(cond), block: Box::new(block) })
     }
 
+    fn try_prase_for(&mut self) -> Option<For> {
+        if let TokenKind::For = self.lexer.get_current_token().kind { self.next_token(); } else { 
+            return None;
+        }
+
+        let ident_iterator: String;
+
+        if let TokenKind::Identifier(ident) = self.lexer.get_current_token().kind {
+            ident_iterator = ident;
+            self.next_token();
+        } else {
+            ErrorHandler::fatal(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::Identifier("_".to_string()), got: self.lexer.get_current_token().kind }) ;
+        }
+
+        if let TokenKind::In = self.lexer.get_current_token().kind {
+            self.next_token();
+        } else {
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::Identifier("_".to_string()), got: self.lexer.get_current_token().kind }) ;
+        }
+
+        let object: Expression;
+        match self.try_parse_expression() {
+            Some(expr) => object = expr,
+            None => ErrorHandler::fatal(ErrorKind::ObjectExpected{ position: self.lexer.get_current_token().position.clone(), got: self.lexer.get_current_token().kind }),
+        }
+
+        let block = self.parse_block();
+
+        Some(For { iterator: ident_iterator, object: Box::new(object), block: Box::new(block) })
+    }
+
+    fn try_prase_if(&mut self) -> Option<If> {
+        if let TokenKind::If = self.lexer.get_current_token().kind { self.next_token(); } else { 
+            return None;
+        }
+
+        if let TokenKind::LeftParentheses = self.lexer.get_current_token().kind { self.next_token(); } else {
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::LeftParentheses, got: self.lexer.get_current_token().kind }) ;
+        }
+
+        let cond = self.try_parse_or_expression()?;
+
+        if let TokenKind::RightParentheses = self.lexer.get_current_token().kind { self.next_token(); } else {
+            self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
+        }
+
+        let block = self.parse_block();
+
+        let else_block: Option<Box<If>>;
+        if let TokenKind::Else = self.lexer.get_current_token().kind {
+            self.next_token();
+            match self.try_prase_if() {
+                Some(stmt) => else_block = Some(Box::new(stmt)),
+                None => {
+                    else_block = Some(Box::new(If{ condition: None, block: Box::new(self.parse_block()), else_block: None }))
+                },
+            }
+        } else { 
+            else_block = None;
+        }
+
+        Some(If{ condition: Some(Box::new(cond)), block: Box::new(block), else_block: else_block })
+    }
+
+    fn try_parse_return(&mut self) -> Option<Return> {
+        if let TokenKind::Return = self.lexer.get_current_token().kind { self.next_token(); } else { 
+            return None;
+        }
+
+        match self.try_parse_expression() {
+            Some(expr) => Some(Return { expression: Some(Box::new(expr)) }),
+            None => Some(Return { expression: None }),
+        }
+    }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_or_expression()?;
@@ -419,7 +524,7 @@ impl Parser {
         let mut left = self.try_parse_and_expression()?;
         
         let operator = self.lexer.get_current_token().kind;
-        if matches!(operator, OrOperator) {
+        if matches!(operator, OR_OPERATOR) {
             self.next_token();
             match self.try_parse_and_expression() {
                 Some(right) => {left = Expression::OrExpression(OrExpression{ left: Box::new(left), right: Box::new(right) })},
@@ -431,13 +536,27 @@ impl Parser {
     }
 
     fn try_parse_and_expression(&mut self) -> Option<Expression> {
-        let mut left = self.try_parse_relational_expression()?;
+        let mut left = self.try_parse_equal_expression()?;
         
         let operator = self.lexer.get_current_token().kind;
-        if matches!(operator, AndOperator) {
+        if matches!(operator, AND_OPERATOR) {
+            self.next_token();
+            match self.try_parse_equal_expression() {
+                Some(right) => {left = Expression::AndExpression(AndExpression{ left: Box::new(left), right: Box::new(right) })},
+                None => todo!(),
+            }
+        } 
+
+        Some(left)
+    }
+
+    fn try_parse_equal_expression(&mut self) ->  Option<Expression> {
+        let mut left = self.try_parse_relational_expression()?;
+        
+        if let Some(operator) = EqualOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_relational_expression() {
-                Some(right) => {left = Expression::AndExpression(AndExpression{ left: Box::new(left), right: Box::new(right) })},
+                Some(right) => {left = Expression::EqualExpression(EqualExpression{ left: Box::new(left), right: Box::new(right), operator: operator })},
                 None => todo!(),
             }
         } 
@@ -488,7 +607,7 @@ impl Parser {
     }
 
     fn try_parse_unary_expression(&mut self) -> Option<Expression> {
-        if matches!(self.lexer.get_current_token().kind, NotOperator) {
+        if matches!(self.lexer.get_current_token().kind, NOT_OPERATOR) {
             let expression = self.try_parse_primary_expression()?;
             return Some(Expression::UnaryExpression(NotExpression{expression: Box::new(expression)}))
         }
@@ -512,7 +631,7 @@ impl Parser {
             TokenKind::LeftParentheses => {
                 self.next_token();
                 let expr = self.try_parse_expression()?;
-                if !matches!(self.lexer.get_current_token().kind, TokenKind::RightBracket) {
+                if !matches!(self.lexer.get_current_token().kind, TokenKind::RightParentheses) {
                     self.report_error(ErrorKind::SyntaxError{ position: self.lexer.get_current_token().position.clone(), expected_kind: TokenKind::RightParentheses, got: self.lexer.get_current_token().kind }) ;
                 }
                 return Some(expr);
@@ -601,7 +720,7 @@ impl Parser {
     
     fn report_error(&self, err: ErrorKind) {
         if FAILFAST {
-            ErrorHandler::fatal(err)
+            panic!("aaa")
         } else {
             ErrorHandler::report_error(err)
         }
@@ -648,9 +767,9 @@ mod tests {
 
     use super::*;
 
-    parser_test!(basic_test, "main(args) { }", Program{
+    parser_test!(basic_test, "main(args, argv) { }", Program{
         functions: HashMap::from([
-            ("main".to_string(),  Function{name: Rc::new(String::from("main")), parameters: VecDeque::from_iter([Parameter{name: "args".to_string(), pos: 0}]), block: Block { statements: VecDeque::new() }}),
+            ("main".to_string(),  Function{name: Rc::new(String::from("main")), parameters: VecDeque::from_iter([Parameter{name: "args".to_string(), pos: 0}, Parameter{name: "argv".to_string(), pos: 1}]), block: Block { statements: VecDeque::new() }}),
             ])
     });
 
@@ -680,6 +799,32 @@ mod tests {
                         right: Box::new(Expression::StringLiteral("12".to_string())),
                         operator: AdditionOperator::Subtract
                     })
+                    )        
+            ]) }}),
+            ])
+    });
+
+    parser_test!(returnca_parsing, "main(args) { return ; return xx - \"12\"; }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { 
+                    statements: VecDeque::from_iter([
+                        Statement::Return(Return{
+                            expression: None
+                        }
+                    ), Statement::Return(Return{
+                        expression: Some(Box::new(Expression::AdditiveExpression(AdditiveExpression{
+                        left: Box::new(Expression::VariableExpression(VariableExpression{
+                            path: VecDeque::from_iter(["xx".to_string()]),
+                            has: None,
+                            arguments: None,
+                        })),
+                        right: Box::new(Expression::StringLiteral("12".to_string())),
+                        operator: AdditionOperator::Subtract
+                    })) )}
                     )        
             ]) }}),
             ])
@@ -784,5 +929,243 @@ mod tests {
             ])
     });
 
+    parser_test!(while_parsing, "main(args) { while (xx != 1) { xx + 12; } }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { statements: VecDeque::from_iter([
+                    Statement::While(While{ 
+                        condition: Box::new(Expression::EqualExpression(EqualExpression{ 
+                            left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })), 
+                            right: Box::new(Expression::Number(Decimal::from(1))),
+                            operator: EqualOperator::NotEqual 
+                        })), block: Box::new(Block { 
+                            statements: VecDeque::from_iter([
+                                Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                    left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    right: Box::new(Expression::Number(Decimal::from(12))),
+                                    operator: AdditionOperator::Add
+                                })
+                            )        
+                        ]) })
+                    })
+                ]) }
+                 }),
+            ])
+    });
 
+    parser_test!(for_parsing, "main(args) { for xx in eee { xx + 12; } }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { statements: VecDeque::from_iter([
+                    Statement::For(For{ 
+                            object: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["eee".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                            iterator: "xx".to_string(),
+                            block: Box::new(Block { 
+                            statements: VecDeque::from_iter([
+                                Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                    left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    right: Box::new(Expression::Number(Decimal::from(12))),
+                                    operator: AdditionOperator::Add
+                                })
+                            )       
+                        ]) })
+                    })
+                ]) }
+                 }),
+            ])
+    });
+
+    parser_test!(if_parsing, "main(args) { if (xx != 1) { xx + 12; } }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { statements: VecDeque::from_iter([
+                    Statement::If(If{ 
+                        condition: Some(Box::new(Expression::EqualExpression(EqualExpression{ 
+                            left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })), 
+                            right: Box::new(Expression::Number(Decimal::from(1))),
+                            operator: EqualOperator::NotEqual 
+                        }))),
+                        else_block: None, 
+                        block: Box::new(Block { 
+                            statements: VecDeque::from_iter([
+                                Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                    left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    right: Box::new(Expression::Number(Decimal::from(12))),
+                                    operator: AdditionOperator::Add
+                                })
+                            )      
+                        ]) })
+                    })
+                ]) }
+                 }),
+            ])
+    });
+
+    parser_test!(if_else_parsing, "main(args) {
+         if (xx != 1) {
+              xx + 12; 
+        } else { xx + 12; } 
+       }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { statements: VecDeque::from_iter([
+                    Statement::If(If{ 
+                        condition: Some(Box::new(Expression::EqualExpression(EqualExpression{ 
+                            left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })), 
+                            right: Box::new(Expression::Number(Decimal::from(1))),
+                            operator: EqualOperator::NotEqual 
+                        }))),
+                        else_block: Some(Box::new(If{ 
+                            condition: None,
+                            else_block: None, 
+                            block: Box::new(Block { 
+                                statements: VecDeque::from_iter([
+                                    Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                        left: Box::new(Expression::VariableExpression(VariableExpression{
+                                            path: VecDeque::from_iter(["xx".to_string()]),
+                                            has: None,
+                                            arguments: None,
+                                        })),
+                                        right: Box::new(Expression::Number(Decimal::from(12))),
+                                        operator: AdditionOperator::Add
+                                    })
+                                )      
+                            ]) })
+                        })), 
+                        block: Box::new(Block { 
+                            statements: VecDeque::from_iter([
+                                Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                    left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    right: Box::new(Expression::Number(Decimal::from(12))),
+                                    operator: AdditionOperator::Add
+                                })
+                            )      
+                        ]) })
+                    })
+                ]) }
+                 }),
+            ])
+    });
+    
+    parser_test!(if_else_if_else_parsing, "main(args) { if (xx != 1) { xx + 12; } else if (xx == 1) { xx + 13; } else { xx + 11; }  }", Program{
+        functions: HashMap::from([
+            ("main".to_string(),  
+            Function{name: Rc::new(String::from("main")), 
+            parameters: VecDeque::from_iter([
+                Parameter{name: "args".to_string(), pos: 0}]), 
+                block: Block { statements: VecDeque::from_iter([
+                    Statement::If(If{ 
+                        condition: Some(Box::new(Expression::EqualExpression(EqualExpression{ 
+                            left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })), 
+                            right: Box::new(Expression::Number(Decimal::from(1))),
+                            operator: EqualOperator::NotEqual 
+                        }))),
+                        else_block: Some(Box::new(If{ 
+                            condition: Some(Box::new(Expression::EqualExpression(EqualExpression{ 
+                                left: Box::new(Expression::VariableExpression(VariableExpression{
+                                            path: VecDeque::from_iter(["xx".to_string()]),
+                                            has: None,
+                                            arguments: None,
+                                        })), 
+                                right: Box::new(Expression::Number(Decimal::from(1))),
+                                operator: EqualOperator::Equal 
+                            }))),
+                            else_block: Some(Box::new(If{ 
+                                condition: None,
+                                else_block: None, 
+                                block: Box::new(Block { 
+                                    statements: VecDeque::from_iter([
+                                        Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                            left: Box::new(Expression::VariableExpression(VariableExpression{
+                                                path: VecDeque::from_iter(["xx".to_string()]),
+                                                has: None,
+                                                arguments: None,
+                                            })),
+                                            right: Box::new(Expression::Number(Decimal::from(11))),
+                                            operator: AdditionOperator::Add
+                                        })
+                                    )      
+                                ]) })
+                            })), 
+                            block: Box::new(Block { 
+                                statements: VecDeque::from_iter([
+                                    Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                        left: Box::new(Expression::VariableExpression(VariableExpression{
+                                            path: VecDeque::from_iter(["xx".to_string()]),
+                                            has: None,
+                                            arguments: None,
+                                        })),
+                                        right: Box::new(Expression::Number(Decimal::from(13))),
+                                        operator: AdditionOperator::Add
+                                    })
+                                )      
+                            ]) })
+                        })), 
+                        block: Box::new(Block { 
+                            statements: VecDeque::from_iter([
+                                Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
+                                    left: Box::new(Expression::VariableExpression(VariableExpression{
+                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    right: Box::new(Expression::Number(Decimal::from(12))),
+                                    operator: AdditionOperator::Add
+                                })
+                            )      
+                        ]) })
+                    })
+                ]) }
+                 }),
+            ])
+    });
 }
+

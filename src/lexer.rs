@@ -172,6 +172,16 @@ impl Lexer {
                 self.pos.clone(),
                 TokenKind::Has,
             ))),
+            "for" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::For,
+            ))),
+            "in" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::In,
+            ))),
             _ => Some(Ok(Token::new(
                 self.source.current_position(),
                 self.pos.clone(),
@@ -750,9 +760,9 @@ mod test {
             "TOKEN: kind: Comma, pos: line: 2, column: 22, offset: 37 \n",
             "TOKEN: kind: QuotedString(\"has\"), pos: line: 2, column: 28, offset: 43 \n",
             "TOKEN: kind: RightParentheses, pos: line: 2, column: 29, offset: 44 \n",
-            "TOKEN: kind: Identifier(\"for\"), pos: line: 3, column: 7, offset: 52 \n",
+            "TOKEN: kind: For, pos: line: 3, column: 7, offset: 52 \n",
             "TOKEN: kind: Identifier(\"c\"), pos: line: 3, column: 9, offset: 54 \n",
-            "TOKEN: kind: Identifier(\"in\"), pos: line: 3, column: 12, offset: 57 \n",
+            "TOKEN: kind: In, pos: line: 3, column: 12, offset: 57 \n",
             "TOKEN: kind: Identifier(\"p\"), pos: line: 3, column: 14, offset: 59 \n",
             "TOKEN: kind: LeftBracket, pos: line: 3, column: 16, offset: 61 \n",
             "TOKEN: kind: Identifier(\"print\"), pos: line: 4, column: 13, offset: 75 \n",

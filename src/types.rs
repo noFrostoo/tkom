@@ -55,6 +55,8 @@ pub enum TokenKind {
     Else,
     Return,
     Has,
+    For,
+    In,
     // brackets
     LeftBracket,
     RightBracket,
