@@ -1,4 +1,4 @@
-use crate::types::Position;
+use crate::types::{Position, TokenKind};
 use std::{io::Error, process::exit};
 
 #[derive(Debug, Clone)]
@@ -27,6 +27,11 @@ pub enum ErrorKind {
         position: Position,
     },
     NoToken,
+    SyntaxError {
+        position: Position,
+        expected_kind: TokenKind,
+        got: TokenKind,
+    },
 }
 
 pub struct ErrorHandler;
@@ -88,6 +93,16 @@ impl ErrorHandler {
                     position.line, position.column
                 )
             }
+            ErrorKind::SyntaxError {
+                position,
+                expected_kind,
+                got,
+            } => {
+                format!(
+                    "Syntax error expected: {:?}, got: {:?} at: {} column: {}",
+                    expected_kind, got, position.line, position.column
+                )
+            },
         };
         eprintln!("{}", msg);
     }

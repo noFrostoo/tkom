@@ -167,6 +167,11 @@ impl Lexer {
                 self.pos.clone(),
                 TokenKind::And,
             ))),
+            "has" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::Has,
+            ))),
             _ => Some(Ok(Token::new(
                 self.source.current_position(),
                 self.pos.clone(),
@@ -571,6 +576,11 @@ mod test {
     tokenize_token!(if_tokenize_test, "   return   ", TokenKind::Return);
     tokenize_token!(return_tokenize_test, "   if   ", TokenKind::If);
     tokenize_token!(else_tokenize_test, "   else   ", TokenKind::Else);
+    tokenize_token!(has2_tokenize_test, "   has   ", TokenKind::Has);
+    tokenize_multiple_tokens!(has_tokenize_test, " var1 has atr ", 
+      TokenKind::Identifier("var1".to_string()),
+      TokenKind::Has,
+      TokenKind::Identifier("atr".to_string()));
     tokenize_token!(plus_tokenize_test, "   +   ", TokenKind::Addition);
     tokenize_token!(subtract_tokenize_test, "   -   ", TokenKind::Subtraction);
     tokenize_token!(assignment_tokenize_test, "   =   ", TokenKind::Assignment);
