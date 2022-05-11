@@ -1507,4 +1507,109 @@ mod tests {
                  }),
             ])
     });
+
+    parser_test!(
+        multiple_level_parsing,
+        "main(args) { if (xx != 1) { for ele in yy {xx + 12; while(xx != 40) { yy(xx + 12); if(yy) { } } } } }",
+        Program {
+            functions: HashMap::from([(
+                "main".to_string(),
+                Function {
+                    name: Rc::new(String::from("main")),
+                    parameters: VecDeque::from_iter([Parameter {
+                        name: "args".to_string(),
+                        pos: 0
+                    }]),
+                    block: Block {
+                        statements: VecDeque::from_iter([Statement::If(If {
+                            condition: Some(Box::new(Expression::EqualExpression(
+                                EqualExpression {
+                                    left: Box::new(Expression::VariableExpression(
+                                        VariableExpression {
+                                            path: VecDeque::from_iter(["xx".to_string()]),
+                                            has: None,
+                                            arguments: None,
+                                        }
+                                    )),
+                                    right: Box::new(Expression::Number(Decimal::from(1))),
+                                    operator: EqualOperator::NotEqual
+                                }
+                            ))),
+                            else_block: None,
+                            block: Box::new(Block {
+                                statements: VecDeque::from_iter([Statement::For(For {
+                                    object: Box::new(Expression::VariableExpression(VariableExpression {
+                                        path: VecDeque::from_iter(["yy".to_string()]),
+                                        has: None,
+                                        arguments: None,
+                                    })),
+                                    iterator: "ele".to_string(),
+                                    block: Box::new(Block {
+                                        statements: VecDeque::from_iter([Statement::Expression(
+                                            Expression::AdditiveExpression(AdditiveExpression {
+                                                left: Box::new(Expression::VariableExpression(
+                                                    VariableExpression {
+                                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                                        has: None,
+                                                        arguments: None,
+                                                    }
+                                                )),
+                                                right: Box::new(Expression::Number(Decimal::from(12))),
+                                                operator: AdditionOperator::Add
+                                            })
+                                        ), Statement::While(While {
+                                            condition: Box::new(Expression::EqualExpression(EqualExpression {
+                                                left: Box::new(Expression::VariableExpression(
+                                                    VariableExpression {
+                                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                                        has: None,
+                                                        arguments: None,
+                                                    }
+                                                )),
+                                                right: Box::new(Expression::Number(Decimal::from(40))),
+                                                operator: EqualOperator::NotEqual
+                                            })),
+                                            block: Box::new(Block {
+                                                statements: VecDeque::from_iter([Statement::Expression(
+                                                    Expression::VariableExpression(VariableExpression {
+                                                        path: VecDeque::from_iter(["yy".to_string()]),
+                                                        has: None,
+                                                        arguments: Some(VecDeque::from_iter([
+                                                            Argument{ expr: Expression::AdditiveExpression(AdditiveExpression{ 
+                                                                left: Box::new(Expression::VariableExpression(
+                                                                    VariableExpression {
+                                                                        path: VecDeque::from_iter(["xx".to_string()]),
+                                                                        has: None,
+                                                                        arguments: None,
+                                                                    }
+                                                                )), 
+                                                                right: Box::new(Expression::Number(Decimal::from(12))), 
+                                                                operator: AdditionOperator::Add }), pos: 0 }
+                                                        ])),
+
+                                                    })
+                                                ), Statement::If(If {
+                                                    condition: Some(Box::new(Expression::VariableExpression(VariableExpression{ 
+                                                        path: VecDeque::from_iter(["yy".to_string()]),
+                                                        has: None, 
+                                                        arguments: None }))),
+                                                    else_block: None,
+                                                    block: Box::new(Block {
+                                                        statements: VecDeque::new()
+                                                    })
+                                                })
+                                                ])
+                                            })
+                                        })
+                                        ])
+                                    })
+                                })])
+                            })
+                        })])
+                    }
+                }
+            ),])
+        }
+    );
+
 }
