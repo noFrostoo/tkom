@@ -1,4 +1,4 @@
-use crate::types::{Position, TokenKind};
+use crate::{types::{Position, TokenKind}, parser::{Statement, Expression}};
 use std::{io::Error, process::exit};
 
 #[derive(Debug, Clone)]
@@ -36,6 +36,17 @@ pub enum ErrorKind {
         position: Position,
         got: TokenKind,
     },
+    StatementExpected {
+        position: Position,
+        what_build: Statement
+    },
+    ConditionExpected {
+        position: Position,
+    },
+    IncompleteExpression {
+        position: Position,
+        expression_type: Expression
+    }
 }
 
 pub struct ErrorHandler;
@@ -46,8 +57,12 @@ impl ErrorHandler {
     }
 
     pub fn fatal(err: ErrorKind) -> ! {
-        Self::handle_error(err);
-        exit(1);
+        if cfg!(test) {
+            panic!("{}", ErrorHandler::error_msg(err))
+        } else {
+            Self::handle_error(err);
+            exit(1);
+        }
     }
 
     pub fn io_error(err: Error) -> ! {
@@ -56,7 +71,11 @@ impl ErrorHandler {
     }
 
     fn handle_error(err: ErrorKind) {
-        let msg = match err {
+        eprintln!("{}", ErrorHandler::error_msg(err));
+    }
+
+    fn error_msg(err: ErrorKind)  -> String{
+        match err {
             ErrorKind::UnexpectedCharacter {
                 actual,
                 expected,
@@ -112,8 +131,20 @@ impl ErrorHandler {
                     "Object expected:  got: {:?} at: {} column: {}",
                     got, position.line, position.column
                 )
-            }
-        };
-        eprintln!("{}", msg);
+            },
+            ErrorKind::StatementExpected { position, what_build } => todo!(),
+            ErrorKind::ConditionExpected { position } => {
+                format!(
+                    "No condition: at: {} column: {}",
+                    position.line, position.column
+                )
+            },
+            ErrorKind::IncompleteExpression { position, expression_type } => {
+                format!(
+                    "Incomplete expression: {:?} at: {} column: {}",
+                    expression_type, position.line, position.column
+                )
+            },
+        }
     }
 }

@@ -15,6 +15,6 @@ fn main() {
         Err(err) => ErrorHandler::io_error(err),
     };
     let lex = Lexer::new(Box::new(fs));
-    let mut parser = Parser::new(Box::new(lex));
+    let mut parser = Parser::new(Box::new(lex), false);
     parser.parse();
 }
