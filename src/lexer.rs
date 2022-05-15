@@ -26,6 +26,7 @@ pub struct Lexer {
     current_char: char,
     token: Token,
     source: Box<dyn Source>,
+    done: bool,
 }
 
 impl TLexer for Lexer {
@@ -33,6 +34,8 @@ impl TLexer for Lexer {
         self.skip_whitespace();
 
         if self.current_char == ETX {
+            self.token = Token::new(0, Position::zero(), TokenKind::Unknown);
+            self.done = true;
             return None;
         }
 
@@ -91,12 +94,12 @@ impl Lexer {
             pos: Position::zero(),
             current_char: ' ',
             token: Token::new(0, Position::zero(), TokenKind::Unknown),
+            done: false,
         }
     }
 
     fn skip_whitespace(&mut self) {
         while self.current_char.is_whitespace() {
-            //? move to get_next_char
             if !self.check_new_line() {
                 self.get_next_char();
             }
@@ -108,7 +111,6 @@ impl Lexer {
             Ok(read_char) => {
                 self.current_char = read_char;
                 self.pos.new_char(self.source.current_position());
-                //? add new line check
                 read_char
             }
             Err(e) => {
@@ -697,6 +699,14 @@ mod test {
     );
     tokenize_token!(FAIL: number4_tokenize_test, "    0000.4    ");
     tokenize_token!(FAIL: number5_tokenize_test, "    0005    ");
+    tokenize_token!(
+        FAIL: number6_tokenize_test,
+        "    100000000000000000000000000000000000    "
+    );
+    tokenize_token!(
+        FAIL: number7_tokenize_test,
+        "    0.1234567891234567890123456789   "
+    );
     tokenize_token!(FAIL: bad_number_test, "   000aaa    ");
     tokenize_token!(FAIL: bad_number2_test, "   00    ");
     tokenize_token!(FAIL: bad_number3_test, "   0.0.    ");

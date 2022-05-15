@@ -1,4 +1,7 @@
-use crate::{types::{Position, TokenKind}, parser::{Statement, Expression}};
+use crate::{
+    parser::{Expression},
+    types::{Position, TokenKind},
+};
 use std::{io::Error, process::exit};
 
 #[derive(Debug, Clone)]
@@ -32,21 +35,18 @@ pub enum ErrorKind {
         expected_kind: TokenKind,
         got: TokenKind,
     },
-    ObjectExpected {
+    ExpressionExpected {
         position: Position,
         got: TokenKind,
-    },
-    StatementExpected {
-        position: Position,
-        what_build: Statement
     },
     ConditionExpected {
         position: Position,
     },
     IncompleteExpression {
         position: Position,
-        expression_type: Expression
-    }
+        expression_type: Expression,
+    },
+    NoFunctions,
 }
 
 pub struct ErrorHandler;
@@ -74,7 +74,7 @@ impl ErrorHandler {
         eprintln!("{}", ErrorHandler::error_msg(err));
     }
 
-    fn error_msg(err: ErrorKind)  -> String{
+    fn error_msg(err: ErrorKind) -> String {
         match err {
             ErrorKind::UnexpectedCharacter {
                 actual,
@@ -123,28 +123,33 @@ impl ErrorHandler {
             } => {
                 format!(
                     "Syntax error expected: {:?}, got: {:?} at: {} column: {}",
-                    expected_kind, got, position.line, position.column
+                     expected_kind, got, position.line, position.column
                 )
             }
-            ErrorKind::ObjectExpected { position, got } => {
+            ErrorKind::ExpressionExpected { position, got } => {
                 format!(
-                    "Object expected:  got: {:?} at: {} column: {}",
+                    "Expression expected:  got: {:?} at: {} column: {}",
                     got, position.line, position.column
                 )
-            },
-            ErrorKind::StatementExpected { position, what_build } => todo!(),
+            }
             ErrorKind::ConditionExpected { position } => {
                 format!(
                     "No condition: at: {} column: {}",
                     position.line, position.column
                 )
-            },
-            ErrorKind::IncompleteExpression { position, expression_type } => {
+            }
+            ErrorKind::IncompleteExpression {
+                position,
+                expression_type,
+            } => {
                 format!(
                     "Incomplete expression: {:?} at: {} column: {}",
                     expression_type, position.line, position.column
                 )
-            },
+            }
+            ErrorKind::NoFunctions {} => {
+                format!("No functions in file")
+            }
         }
     }
 }

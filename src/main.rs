@@ -16,5 +16,6 @@ fn main() {
     };
     let lex = Lexer::new(Box::new(fs));
     let mut parser = Parser::new(Box::new(lex), false);
-    parser.parse();
+    let program = parser.parse();
+    print!("{:?}", program)
 }
