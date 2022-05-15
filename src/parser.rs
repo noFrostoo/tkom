@@ -792,7 +792,21 @@ impl Parser {
             TokenKind::Number(n) => {
                 self.next_token();
                 Some(Expression::Number(n))
-            }
+            },
+            TokenKind::Subtraction => {
+                self.next_token();
+                if let TokenKind::Number(n) = self.lexer.get_current_token().kind {
+                    match n.checked_mul(Decimal::new(-1, 0)) {
+                        Some(ns) => {self.next_token(); Some(Expression::Number(ns))},
+                        None => ErrorHandler::fatal(ErrorKind::NumberTooBig{position: self.lexer.get_position()}),
+                    }
+                } else {
+                    ErrorHandler::fatal(ErrorKind::IncompleteExpression {
+                        position: self.lexer.get_current_token().position.clone(),
+                        expression_type: Expression::Number(Decimal::new(0, 0))
+                    });
+                }
+            },
             TokenKind::Identifier(_) => self.try_parse_ident_expression(),
             TokenKind::LeftParentheses => {
                 self.next_token();
@@ -1038,6 +1052,27 @@ mod tests {
                                     operator: AdditionOperator::Subtract
                                 }
                             ))
+                        ])
+                    }
+                }
+            ),])
+        }
+    );
+
+    parser_test!(
+        negative_number_parsing,
+        "main(args) { - 1444 }",
+        Program {
+            functions: HashMap::from([(
+                "main".to_string(),
+                Function {
+                    name: Rc::new(String::from("main")),
+                    parameters: VecDeque::from_iter([Parameter {
+                        name: "args".to_string(),
+                    }]),
+                    block: Block {
+                        statements: VecDeque::from_iter([
+                            Statement::Expression(Expression::Number(Decimal::new(-1444, 0))),
                         ])
                     }
                 }
@@ -1784,4 +1819,5 @@ mod tests {
     parser_test!(FAIL: syntax_error17, "main(args) { while) {}   }");
     parser_test!(FAIL: syntax_error18, "main(args) { if( {}   }");
     parser_test!(FAIL: syntax_error19, "main(args) { if) {}   }");
+    parser_test!(FAIL: syntax_error20, "main(args) { -   }");
 }
