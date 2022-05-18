@@ -1,5 +1,5 @@
 use crate::{
-    parser::{Expression},
+    parser::Expression,
     types::{Position, TokenKind},
 };
 use std::{io::Error, process::exit};
@@ -46,6 +46,13 @@ pub enum ErrorKind {
         position: Position,
         expression_type: Expression,
     },
+    DuplicateFunction {
+        name: String,
+    },
+    DuplicateParameters {
+        name: String,
+    },
+    BlockExpected {},
     NoFunctions,
 }
 
@@ -123,7 +130,7 @@ impl ErrorHandler {
             } => {
                 format!(
                     "Syntax error expected: {:?}, got: {:?} at: {} column: {}",
-                     expected_kind, got, position.line, position.column
+                    expected_kind, got, position.line, position.column
                 )
             }
             ErrorKind::ExpressionExpected { position, got } => {
@@ -150,6 +157,9 @@ impl ErrorHandler {
             ErrorKind::NoFunctions {} => {
                 format!("No functions in file")
             }
+            ErrorKind::DuplicateFunction { name } => todo!(),
+            ErrorKind::DuplicateParameters { name } => todo!(),
+            ErrorKind::BlockExpected {} => todo!(),
         }
     }
 }

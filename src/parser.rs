@@ -56,6 +56,7 @@ pub enum Expression {
     AdditiveExpression(AdditiveExpression),
     MultiplicativeExpression(MultiplicativeExpression),
     UnaryExpression(NotExpression),
+    HasExpression(HasExpression),
     StringLiteral(String),
     Number(Decimal),
     VariableExpression(VariableExpression),
@@ -115,6 +116,12 @@ pub struct NotExpression {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct HasExpression {
+    expression: Box<Expression>,
+    ident: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct StringLiteral {
     content: String,
 }
@@ -127,7 +134,6 @@ pub struct Number {
 #[derive(Clone, PartialEq, Debug)]
 pub struct VariableExpression {
     path: VecDeque<FunCallOrMember>,
-    has: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -164,6 +170,8 @@ pub struct Return {
 pub const NOT_OPERATOR: TokenKind = TokenKind::Not;
 pub const OR_OPERATOR: TokenKind = TokenKind::Or;
 pub const AND_OPERATOR: TokenKind = TokenKind::And;
+pub const SUBTRACT_OPERATOR: TokenKind = TokenKind::Subtraction;
+pub const HAS_OPERATOR: TokenKind = TokenKind::Has;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum AssignmentOperator {
@@ -278,7 +286,14 @@ impl Parser {
         self.next_token();
         let mut functions: HashMap<String, Function> = HashMap::new();
         while let Some(func) = self.try_parse_fun_def() {
-            functions.insert(String::from(func.name.as_ref()), func.clone());
+            match functions.get(&func.name.to_string()) {
+                Some(_) => ErrorHandler::fatal(ErrorKind::DuplicateFunction {
+                    name: func.name.to_string(),
+                }),
+                None => {
+                    functions.insert(String::from(func.name.as_ref()), func.clone());
+                }
+            }
         }
 
         if functions.len() == 0 {
@@ -321,7 +336,11 @@ impl Parser {
             });
         }
 
-        let block = self.parse_block();
+        let block;
+        match self.try_parse_block() {
+            Some(b) => block = b,
+            None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
+        }
 
         Some(Function {
             name: Rc::new(name),
@@ -344,7 +363,16 @@ impl Parser {
             self.next_token();
 
             match self.lexer.get_current_token().kind {
-                TokenKind::Identifier(p) => parameters.push_back(Parameter { name: p }),
+                TokenKind::Identifier(p) => {
+                    let parameter = Parameter { name: p.clone() };
+                    for par in parameters.clone() {
+                        if parameter == par {
+                            ErrorHandler::fatal(ErrorKind::DuplicateParameters { name: p })
+                        }
+                    }
+
+                    parameters.push_back(parameter);
+                }
                 _ => self.report_error(ErrorKind::SyntaxError {
                     position: self.lexer.get_position(),
                     expected_kind: TokenKind::Identifier("_".to_string()),
@@ -358,15 +386,11 @@ impl Parser {
         parameters
     }
 
-    fn parse_block(&mut self) -> Block {
+    fn try_parse_block(&mut self) -> Option<Block> {
         if let TokenKind::LeftBracket = self.lexer.get_current_token().kind {
             self.next_token();
         } else {
-            self.report_error(ErrorKind::SyntaxError {
-                position: self.lexer.get_current_token().position.clone(),
-                expected_kind: TokenKind::LeftBracket,
-                got: self.lexer.get_current_token().kind,
-            });
+            return None;
         }
 
         let mut statements: VecDeque<Statement> = VecDeque::new();
@@ -385,9 +409,9 @@ impl Parser {
             });
         }
 
-        Block {
+        Some(Block {
             statements: statements,
-        }
+        })
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
@@ -452,13 +476,14 @@ impl Parser {
         }
 
         let cond;
-        match self.try_parse_or_expression() {
+        match self.try_parse_expression() {
             Some(c) => cond = c,
             None => ErrorHandler::fatal(ErrorKind::ConditionExpected {
                 position: self.lexer.get_position().clone(),
             }),
         }
 
+        // TODO: dodaj what_building
         if let TokenKind::RightParentheses = self.lexer.get_current_token().kind {
             self.next_token();
         } else {
@@ -469,7 +494,13 @@ impl Parser {
             });
         }
 
-        let block = self.parse_block();
+        //TODO: DODAJ licznki błedów
+        //TODO: dodaj pozycje gdzie cos jest
+        let block;
+        match self.try_parse_block() {
+            Some(b) => block = b,
+            None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
+        }
 
         Some(While {
             condition: Box::new(cond),
@@ -516,7 +547,11 @@ impl Parser {
             }),
         }
 
-        let block = self.parse_block();
+        let block;
+        match self.try_parse_block() {
+            Some(b) => block = b,
+            None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
+        }
 
         Some(For {
             iterator: ident_iterator,
@@ -543,7 +578,7 @@ impl Parser {
         }
 
         let cond;
-        match self.try_parse_or_expression() {
+        match self.try_parse_expression() {
             Some(c) => cond = c,
             None => ErrorHandler::fatal(ErrorKind::ConditionExpected {
                 position: self.lexer.get_position().clone(),
@@ -560,17 +595,28 @@ impl Parser {
             });
         }
 
-        let block = self.parse_block();
+        let block;
+        match self.try_parse_block() {
+            Some(b) => block = b,
+            None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
+        }
 
+        //TODO; przerób na iteracje
         let else_block: Option<Box<If>>;
         if let TokenKind::Else = self.lexer.get_current_token().kind {
             self.next_token();
             match self.try_prase_if() {
                 Some(stmt) => else_block = Some(Box::new(stmt)),
                 None => {
+                    let block;
+                    match self.try_parse_block() {
+                        Some(b) => block = b,
+                        None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
+                    }
+
                     else_block = Some(Box::new(If {
                         condition: None,
-                        block: Box::new(self.parse_block()),
+                        block: Box::new(block),
                         else_block: None,
                     }))
                 }
@@ -602,29 +648,6 @@ impl Parser {
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        let mut left = self.try_parse_or_expression()?;
-
-        if let Some(operator) = AssignmentOperator::remap(self.lexer.get_current_token()) {
-            self.next_token();
-            match self.try_parse_or_expression() {
-                Some(right) => {
-                    left = Expression::AssignmentExpression(AssignmentExpression {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        operator: operator,
-                    })
-                }
-                None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
-                    position: self.lexer.get_position(),
-                    expression_type: left,
-                }),
-            }
-        }
-
-        Some(left)
-    }
-
-    fn try_parse_or_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_and_expression()?;
 
         let mut operator = self.lexer.get_current_token().kind;
@@ -767,7 +790,7 @@ impl Parser {
     fn try_parse_unary_expression(&mut self) -> Option<Expression> {
         if matches!(self.lexer.get_current_token().kind, NOT_OPERATOR) {
             self.next_token();
-            let expression = match self.try_parse_or_expression() {
+            let expression = match self.try_parse_expression() {
                 Some(e) => e,
                 None => ErrorHandler::fatal(ErrorKind::ExpressionExpected {
                     position: self.lexer.get_position(),
@@ -779,7 +802,45 @@ impl Parser {
             }));
         }
 
-        let expression = self.try_parse_primary_expression()?;
+        if matches!(self.lexer.get_current_token().kind, SUBTRACT_OPERATOR) {
+            self.next_token();
+            if let TokenKind::Number(n) = self.lexer.get_current_token().kind {
+                match n.checked_mul(Decimal::new(-1, 0)) {
+                    Some(ns) => {
+                        self.next_token();
+                        return Some(Expression::Number(ns));
+                    }
+                    None => ErrorHandler::fatal(ErrorKind::NumberTooBig {
+                        position: self.lexer.get_position(),
+                    }),
+                }
+            } else {
+                ErrorHandler::fatal(ErrorKind::IncompleteExpression {
+                    position: self.lexer.get_current_token().position.clone(),
+                    expression_type: Expression::Number(Decimal::new(0, 0)),
+                });
+            }
+        }
+
+        let expression = self.try_parse_has_expression()?;
+        Some(expression)
+    }
+
+    fn try_parse_has_expression(&mut self) -> Option<Expression> {
+        let mut expression = self.try_parse_primary_expression()?;
+
+        let operator = self.lexer.get_current_token().kind;
+        if matches!(operator, HAS_OPERATOR) {
+            self.next_token();
+            if let TokenKind::Identifier(ident) = self.lexer.get_current_token().kind {
+                self.next_token();
+                expression = Expression::HasExpression(HasExpression {
+                    expression: Box::new(expression),
+                    ident: ident,
+                });
+            }
+        }
+
         Some(expression)
     }
 
@@ -792,22 +853,9 @@ impl Parser {
             TokenKind::Number(n) => {
                 self.next_token();
                 Some(Expression::Number(n))
-            },
-            TokenKind::Subtraction => {
-                self.next_token();
-                if let TokenKind::Number(n) = self.lexer.get_current_token().kind {
-                    match n.checked_mul(Decimal::new(-1, 0)) {
-                        Some(ns) => {self.next_token(); Some(Expression::Number(ns))},
-                        None => ErrorHandler::fatal(ErrorKind::NumberTooBig{position: self.lexer.get_position()}),
-                    }
-                } else {
-                    ErrorHandler::fatal(ErrorKind::IncompleteExpression {
-                        position: self.lexer.get_current_token().position.clone(),
-                        expression_type: Expression::Number(Decimal::new(0, 0))
-                    });
-                }
-            },
-            TokenKind::Identifier(_) => self.try_parse_ident_expression(),
+            }
+
+            TokenKind::Identifier(_) => self.try_parse_assignment_expression(),
             TokenKind::LeftParentheses => {
                 self.next_token();
                 let expr = self.try_parse_expression();
@@ -829,9 +877,31 @@ impl Parser {
         }
     }
 
+    fn try_parse_assignment_expression(&mut self) -> Option<Expression> {
+        let mut left = self.try_parse_ident_expression()?;
+
+        if let Some(operator) = AssignmentOperator::remap(self.lexer.get_current_token()) {
+            self.next_token();
+            match self.try_parse_expression() {
+                Some(right) => {
+                    left = Expression::AssignmentExpression(AssignmentExpression {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        operator: operator,
+                    })
+                }
+                None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
+                    position: self.lexer.get_position(),
+                    expression_type: left,
+                }),
+            }
+        }
+
+        Some(left)
+    }
+
     fn try_parse_ident_expression(&mut self) -> Option<Expression> {
         let mut path: VecDeque<FunCallOrMember> = VecDeque::new();
-        let mut has: Option<String> = None;
 
         if let Some(f) = self.try_parse_fn_call_or_member_access() {
             path.push_back(f)
@@ -853,23 +923,8 @@ impl Parser {
             }
         }
 
-        if let TokenKind::Has = self.lexer.get_current_token().kind {
-            self.next_token();
-            if let TokenKind::Identifier(i) = self.lexer.get_current_token().kind {
-                has = Some(i);
-                self.next_token();
-            } else {
-                ErrorHandler::fatal(ErrorKind::SyntaxError {
-                    position: self.lexer.get_current_token().position.clone(),
-                    expected_kind: TokenKind::Identifier("_".to_string()),
-                    got: self.lexer.get_current_token().kind,
-                })
-            }
-        }
-
         return Some(Expression::VariableExpression(VariableExpression {
             path: path,
-            has: has,
         }));
     }
 
@@ -882,23 +937,7 @@ impl Parser {
             return None;
         }
 
-        let mut arguments = None;
-
-        if let TokenKind::LeftParentheses = self.lexer.get_current_token().kind {
-            self.next_token();
-
-            arguments = Some(self.parse_arguments());
-
-            if let TokenKind::RightParentheses = self.lexer.get_current_token().kind {
-                self.next_token();
-            } else {
-                self.report_error(ErrorKind::SyntaxError {
-                    position: self.lexer.get_current_token().position.clone(),
-                    expected_kind: TokenKind::RightParentheses,
-                    got: self.lexer.get_current_token().kind,
-                });
-            }
-        }
+        let arguments = self.try_parse_function_call();
 
         Some(FunCallOrMember {
             name: ident,
@@ -906,19 +945,41 @@ impl Parser {
         })
     }
 
+    fn try_parse_function_call(&mut self) -> Option<VecDeque<Argument>> {
+        if let TokenKind::LeftParentheses = self.lexer.get_current_token().kind {
+            self.next_token();
+        } else {
+            return None;
+        }
+
+        let arguments = Some(self.parse_arguments());
+
+        if let TokenKind::RightParentheses = self.lexer.get_current_token().kind {
+            self.next_token();
+        } else {
+            self.report_error(ErrorKind::SyntaxError {
+                position: self.lexer.get_current_token().position.clone(),
+                expected_kind: TokenKind::RightParentheses,
+                got: self.lexer.get_current_token().kind,
+            });
+        }
+
+        return arguments;
+    }
+
     fn parse_arguments(&mut self) -> VecDeque<Argument> {
         let mut arguments: VecDeque<Argument> = VecDeque::new();
 
-        match self.try_parse_or_expression() {
+        match self.try_parse_expression() {
             Some(e) => arguments.push_back(Argument { expr: e }),
             None => return arguments,
         }
 
         while let TokenKind::Comma = self.lexer.get_current_token().kind {
             self.next_token();
-            match self.try_parse_or_expression() {
+            match self.try_parse_expression() {
                 Some(e) => arguments.push_back(Argument { expr: e }),
-                None => ErrorHandler::fatal(ErrorKind::SyntaxError {
+                None => self.report_error(ErrorKind::SyntaxError {
                     position: self.lexer.get_current_token().position.clone(),
                     expected_kind: TokenKind::LeftParentheses,
                     got: self.lexer.get_current_token().kind,
@@ -980,7 +1041,7 @@ mod tests {
 
     use crate::{
         file_handler::{self},
-        lexer::{Lexer},
+        lexer::Lexer,
     };
 
     use super::*;
@@ -1030,7 +1091,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1045,7 +1105,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::StringLiteral("12".to_string())),
@@ -1071,9 +1130,9 @@ mod tests {
                         name: "args".to_string(),
                     }]),
                     block: Block {
-                        statements: VecDeque::from_iter([
-                            Statement::Expression(Expression::Number(Decimal::new(-1444, 0))),
-                        ])
+                        statements: VecDeque::from_iter([Statement::Expression(
+                            Expression::Number(Decimal::new(-1444, 0))
+                        ),])
                     }
                 }
             ),])
@@ -1103,7 +1162,6 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                has: None,
                                             }
                                         )),
                                         right: Box::new(Expression::StringLiteral(
@@ -1122,7 +1180,7 @@ mod tests {
 
     parser_test!(
         has_parsing,
-        "main(args) { xx has faf  ; xx.x() has XD }",
+        "main(args) { xx has faf ; xx.x() has XD ;}",
         Program {
             functions: HashMap::from([(
                 "main".to_string(),
@@ -1133,30 +1191,34 @@ mod tests {
                     }]),
                     block: Block {
                         statements: VecDeque::from_iter([
-                            Statement::Expression(Expression::VariableExpression(
-                                VariableExpression {
-                                    path: VecDeque::from_iter([FunCallOrMember {
-                                        name: "xx".to_string(),
-                                        arguments: None
-                                    }]),
-                                    has: Some("faf".to_string())
-                                }
-                            )),
-                            Statement::Expression(Expression::VariableExpression(
-                                VariableExpression {
-                                    path: VecDeque::from_iter([
-                                        FunCallOrMember {
+                            Statement::Expression(Expression::HasExpression(HasExpression {
+                                expression: Box::new(Expression::VariableExpression(
+                                    VariableExpression {
+                                        path: VecDeque::from_iter([FunCallOrMember {
                                             name: "xx".to_string(),
                                             arguments: None
-                                        },
-                                        FunCallOrMember {
-                                            name: "x".to_string(),
-                                            arguments: Some(VecDeque::new())
-                                        }
-                                    ]),
-                                    has: Some("XD".to_string())
-                                }
-                            )),
+                                        }]),
+                                    }
+                                )),
+                                ident: "faf".to_string()
+                            })),
+                            Statement::Expression(Expression::HasExpression(HasExpression {
+                                expression: Box::new(Expression::VariableExpression(
+                                    VariableExpression {
+                                        path: VecDeque::from_iter([
+                                            FunCallOrMember {
+                                                name: "xx".to_string(),
+                                                arguments: None
+                                            },
+                                            FunCallOrMember {
+                                                name: "x".to_string(),
+                                                arguments: Some(VecDeque::new())
+                                            }
+                                        ]),
+                                    }
+                                )),
+                                ident: "XD".to_string()
+                            })),
                         ])
                     }
                 }
@@ -1185,7 +1247,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1200,7 +1261,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1215,7 +1275,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1230,7 +1289,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1244,7 +1302,6 @@ mod tests {
                                             name: "xx".to_string(),
                                             arguments: None
                                         }]),
-                                        has: None,
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1274,7 +1331,6 @@ mod tests {
                                     left: Box::new(Expression::VariableExpression(
                                         VariableExpression {
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1287,10 +1343,8 @@ mod tests {
                                     FunCallOrMember{ name: "x".to_string(), arguments: Some(VecDeque::from_iter([Argument {
                                         expr: Expression::VariableExpression(VariableExpression {
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "ee".to_string(), arguments: None }]),
-                                            has: None,
                                         }),
                                     }])) }]),
-                                    has: None,
                                 }
                             )),
                             Statement::Expression(Expression::VariableExpression(
@@ -1309,16 +1363,13 @@ mod tests {
                                                                 FunCallOrMember{ name: "yy".to_string(), arguments: None },
                                                                 FunCallOrMember{ name: "yyy".to_string(), arguments: None }
                                                             ]),
-                                                            has: None,
                                                         }
                                                     ),
                                                 }]))
                                              }]),
-                                                has: None,
                                             }),
                                         }])) }
                                     ]),
-                                    has: None,
                                 }
                             ))
                         ])
@@ -1348,7 +1399,6 @@ mod tests {
                                             name: "xx".to_string(),
                                             arguments: None
                                         }]),
-                                        has: None,
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(1))),
@@ -1363,7 +1413,6 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                has: None,
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1396,7 +1445,6 @@ mod tests {
                                     name: "eee".to_string(),
                                     arguments: None
                                 }]),
-                                has: None,
                             })),
                             iterator: "xx".to_string(),
                             block: Box::new(Block {
@@ -1408,7 +1456,6 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                has: None,
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1444,7 +1491,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
@@ -1461,7 +1507,6 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                has: None,
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1501,7 +1546,6 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
@@ -1520,7 +1564,6 @@ mod tests {
                                                         name: "xx".to_string(),
                                                         arguments: None
                                                     }]),
-                                                    has: None,
                                                 }
                                             )),
                                             right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1538,7 +1581,6 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                has: None,
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1564,7 +1606,6 @@ mod tests {
                         condition: Some(Box::new(Expression::EqualExpression(EqualExpression{
                             left: Box::new(Expression::VariableExpression(VariableExpression{
                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                        has: None,
                                     })),
                             right: Box::new(Expression::Number(Decimal::from(1))),
                             operator: EqualOperator::NotEqual
@@ -1573,7 +1614,6 @@ mod tests {
                             condition: Some(Box::new(Expression::EqualExpression(EqualExpression{
                                 left: Box::new(Expression::VariableExpression(VariableExpression{
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                            has: None,
                                         })),
                                 right: Box::new(Expression::Number(Decimal::from(1))),
                                 operator: EqualOperator::Equal
@@ -1586,7 +1626,6 @@ mod tests {
                                         Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
                                             left: Box::new(Expression::VariableExpression(VariableExpression{
                                                 path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                                has: None,
                                             })),
                                             right: Box::new(Expression::Number(Decimal::from(11))),
                                             operator: AdditionOperator::Add
@@ -1598,7 +1637,6 @@ mod tests {
                                     Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
                                         left: Box::new(Expression::VariableExpression(VariableExpression{
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                            has: None,
                                         })),
                                         right: Box::new(Expression::Number(Decimal::from(13))),
                                         operator: AdditionOperator::Add
@@ -1610,7 +1648,6 @@ mod tests {
                                 Statement::Expression(Expression::AdditiveExpression(AdditiveExpression{
                                     left: Box::new(Expression::VariableExpression(VariableExpression{
                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                        has: None,
                                     })),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: AdditionOperator::Add
@@ -1640,7 +1677,6 @@ mod tests {
                                     left: Box::new(Expression::VariableExpression(
                                         VariableExpression {
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                            has: None,
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
@@ -1652,7 +1688,6 @@ mod tests {
                                 statements: VecDeque::from_iter([Statement::For(For {
                                     object: Box::new(Expression::VariableExpression(VariableExpression {
                                         path: VecDeque::from_iter([FunCallOrMember{ name: "yy".to_string(), arguments: None }]),
-                                        has: None,
                                     })),
                                     iterator: "ele".to_string(),
                                     block: Box::new(Block {
@@ -1661,7 +1696,6 @@ mod tests {
                                                 left: Box::new(Expression::VariableExpression(
                                                     VariableExpression {
                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                                        has: None,
                                                     }
                                                 )),
                                                 right: Box::new(Expression::Number(Decimal::from(12))),
@@ -1674,7 +1708,6 @@ mod tests {
                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), 
                                                         arguments: None
                                                     }]),
-                                                        has: None,
                                                     }
                                                 )),
                                                 right: Box::new(Expression::Number(Decimal::from(40))),
@@ -1688,19 +1721,16 @@ mod tests {
                                                                 left: Box::new(Expression::VariableExpression(
                                                                     VariableExpression {
                                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
-                                                                        has: None,
                                                                     }
                                                                 )),
                                                                 right: Box::new(Expression::Number(Decimal::from(12))),
                                                                 operator: AdditionOperator::Add })}
                                                         ])) }]),
-                                                        has: None
-
                                                     })
                                                 ), Statement::If(If {
                                                     condition: Some(Box::new(Expression::VariableExpression(VariableExpression{
                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "yy".to_string(), arguments: None }]),
-                                                        has: None }))),
+                                                         }))),
                                                     else_block: None,
                                                     block: Box::new(Block {
                                                         statements: VecDeque::new()
@@ -1744,12 +1774,12 @@ mod tests {
                                                             left: Box::new(Expression::MultiplicativeExpression(MultiplicativeExpression{
                                                                 left: Box::new(Expression::VariableExpression(VariableExpression{
                                                                     path: VecDeque::from_iter([FunCallOrMember{ name: "x".to_string(), arguments: None }]),
-                                                                    has: None })),
+                                                                     })),
                                                                 right: Box::new(Expression::AdditiveExpression(AdditiveExpression{
                                                                     left: Box::new(Expression::Number(Decimal::from(13))),
                                                                     right: Box::new(Expression::VariableExpression(VariableExpression{
                                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "y".to_string(), arguments: None }]),
-                                                                        has: None })),
+                                                                         })),
                                                                     operator: AdditionOperator::Add
                                                                 })),
                                                                 operator: MultiplicationOperator::Multiplication
@@ -1765,7 +1795,7 @@ mod tests {
                                                 })),
                                             right: Box::new(Expression::VariableExpression(VariableExpression{
                                                 path: VecDeque::from_iter([FunCallOrMember{ name: "yy".to_string(), arguments: None }]),
-                                                has: None })) ,}
+                                                 })) ,}
                                     )),
                                     right: Box::new(Expression::UnaryExpression(NotExpression{
                                         expression: Box::new(Expression::EqualExpression(EqualExpression{
@@ -1820,4 +1850,8 @@ mod tests {
     parser_test!(FAIL: syntax_error18, "main(args) { if( {}   }");
     parser_test!(FAIL: syntax_error19, "main(args) { if) {}   }");
     parser_test!(FAIL: syntax_error20, "main(args) { -   }");
+    parser_test!(
+        FAIL: syntax_error21,
+        "main(args) { x.xx() } main(args) { x.xx() }"
+    );
 }
