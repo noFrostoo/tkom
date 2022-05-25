@@ -1854,4 +1854,6 @@ mod tests {
         FAIL: syntax_error21,
         "main(args) { x.xx() } main(args) { x.xx() }"
     );
+    parser_test!(FAIL: syntax_error22, "main(args, args) {x.x();}");
+
 }
