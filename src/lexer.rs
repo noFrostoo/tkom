@@ -26,6 +26,7 @@ pub struct Lexer {
     current_char: char,
     token: Token,
     source: Box<dyn Source>,
+    done: bool,
 }
 
 impl TLexer for Lexer {
@@ -33,6 +34,8 @@ impl TLexer for Lexer {
         self.skip_whitespace();
 
         if self.current_char == ETX {
+            self.token = Token::new(0, Position::zero(), TokenKind::Unknown);
+            self.done = true;
             return None;
         }
 
@@ -91,12 +94,12 @@ impl Lexer {
             pos: Position::zero(),
             current_char: ' ',
             token: Token::new(0, Position::zero(), TokenKind::Unknown),
+            done: false,
         }
     }
 
     fn skip_whitespace(&mut self) {
         while self.current_char.is_whitespace() {
-            //? move to get_next_char
             if !self.check_new_line() {
                 self.get_next_char();
             }
@@ -108,7 +111,6 @@ impl Lexer {
             Ok(read_char) => {
                 self.current_char = read_char;
                 self.pos.new_char(self.source.current_position());
-                //? add new line check
                 read_char
             }
             Err(e) => {
@@ -166,6 +168,21 @@ impl Lexer {
                 self.source.current_position(),
                 self.pos.clone(),
                 TokenKind::And,
+            ))),
+            "has" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::Has,
+            ))),
+            "for" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::For,
+            ))),
+            "in" => Some(Ok(Token::new(
+                self.source.current_position(),
+                self.pos.clone(),
+                TokenKind::In,
             ))),
             _ => Some(Ok(Token::new(
                 self.source.current_position(),
@@ -571,6 +588,14 @@ mod test {
     tokenize_token!(if_tokenize_test, "   return   ", TokenKind::Return);
     tokenize_token!(return_tokenize_test, "   if   ", TokenKind::If);
     tokenize_token!(else_tokenize_test, "   else   ", TokenKind::Else);
+    tokenize_token!(has2_tokenize_test, "   has   ", TokenKind::Has);
+    tokenize_multiple_tokens!(
+        has_tokenize_test,
+        " var1 has atr ",
+        TokenKind::Identifier("var1".to_string()),
+        TokenKind::Has,
+        TokenKind::Identifier("atr".to_string())
+    );
     tokenize_token!(plus_tokenize_test, "   +   ", TokenKind::Addition);
     tokenize_token!(subtract_tokenize_test, "   -   ", TokenKind::Subtraction);
     tokenize_token!(assignment_tokenize_test, "   =   ", TokenKind::Assignment);
@@ -674,6 +699,14 @@ mod test {
     );
     tokenize_token!(FAIL: number4_tokenize_test, "    0000.4    ");
     tokenize_token!(FAIL: number5_tokenize_test, "    0005    ");
+    tokenize_token!(
+        FAIL: number6_tokenize_test,
+        "    100000000000000000000000000000000000    "
+    );
+    tokenize_token!(
+        FAIL: number7_tokenize_test,
+        "    0.1234567891234567890123456789   "
+    );
     tokenize_token!(FAIL: bad_number_test, "   000aaa    ");
     tokenize_token!(FAIL: bad_number2_test, "   00    ");
     tokenize_token!(FAIL: bad_number3_test, "   0.0.    ");
@@ -740,9 +773,9 @@ mod test {
             "TOKEN: kind: Comma, pos: line: 2, column: 22, offset: 37 \n",
             "TOKEN: kind: QuotedString(\"has\"), pos: line: 2, column: 28, offset: 43 \n",
             "TOKEN: kind: RightParentheses, pos: line: 2, column: 29, offset: 44 \n",
-            "TOKEN: kind: Identifier(\"for\"), pos: line: 3, column: 7, offset: 52 \n",
+            "TOKEN: kind: For, pos: line: 3, column: 7, offset: 52 \n",
             "TOKEN: kind: Identifier(\"c\"), pos: line: 3, column: 9, offset: 54 \n",
-            "TOKEN: kind: Identifier(\"in\"), pos: line: 3, column: 12, offset: 57 \n",
+            "TOKEN: kind: In, pos: line: 3, column: 12, offset: 57 \n",
             "TOKEN: kind: Identifier(\"p\"), pos: line: 3, column: 14, offset: 59 \n",
             "TOKEN: kind: LeftBracket, pos: line: 3, column: 16, offset: 61 \n",
             "TOKEN: kind: Identifier(\"print\"), pos: line: 4, column: 13, offset: 75 \n",

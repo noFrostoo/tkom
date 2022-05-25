@@ -1,4 +1,7 @@
-use crate::types::Position;
+use crate::{
+    parser::Expression,
+    types::{Position, TokenKind},
+};
 use std::{io::Error, process::exit};
 
 #[derive(Debug, Clone)]
@@ -27,6 +30,30 @@ pub enum ErrorKind {
         position: Position,
     },
     NoToken,
+    SyntaxError {
+        position: Position,
+        expected_kind: TokenKind,
+        got: TokenKind,
+    },
+    ExpressionExpected {
+        position: Position,
+        got: TokenKind,
+    },
+    ConditionExpected {
+        position: Position,
+    },
+    IncompleteExpression {
+        position: Position,
+        expression_type: Expression,
+    },
+    DuplicateFunction {
+        name: String,
+    },
+    DuplicateParameters {
+        name: String,
+    },
+    BlockExpected {},
+    NoFunctions,
 }
 
 pub struct ErrorHandler;
@@ -37,8 +64,12 @@ impl ErrorHandler {
     }
 
     pub fn fatal(err: ErrorKind) -> ! {
-        Self::handle_error(err);
-        exit(1);
+        if cfg!(test) {
+            panic!("{}", ErrorHandler::error_msg(err))
+        } else {
+            Self::handle_error(err);
+            exit(1);
+        }
     }
 
     pub fn io_error(err: Error) -> ! {
@@ -47,7 +78,11 @@ impl ErrorHandler {
     }
 
     fn handle_error(err: ErrorKind) {
-        let msg = match err {
+        eprintln!("{}", ErrorHandler::error_msg(err));
+    }
+
+    fn error_msg(err: ErrorKind) -> String {
+        match err {
             ErrorKind::UnexpectedCharacter {
                 actual,
                 expected,
@@ -88,7 +123,43 @@ impl ErrorHandler {
                     position.line, position.column
                 )
             }
-        };
-        eprintln!("{}", msg);
+            ErrorKind::SyntaxError {
+                position,
+                expected_kind,
+                got,
+            } => {
+                format!(
+                    "Syntax error expected: {:?}, got: {:?} at: {} column: {}",
+                    expected_kind, got, position.line, position.column
+                )
+            }
+            ErrorKind::ExpressionExpected { position, got } => {
+                format!(
+                    "Expression expected:  got: {:?} at: {} column: {}",
+                    got, position.line, position.column
+                )
+            }
+            ErrorKind::ConditionExpected { position } => {
+                format!(
+                    "No condition: at: {} column: {}",
+                    position.line, position.column
+                )
+            }
+            ErrorKind::IncompleteExpression {
+                position,
+                expression_type,
+            } => {
+                format!(
+                    "Incomplete expression: {:?} at: {} column: {}",
+                    expression_type, position.line, position.column
+                )
+            }
+            ErrorKind::NoFunctions {} => {
+                format!("No functions in file")
+            }
+            ErrorKind::DuplicateFunction { name } => todo!(),
+            ErrorKind::DuplicateParameters { name } => todo!(),
+            ErrorKind::BlockExpected {} => todo!(),
+        }
     }
 }

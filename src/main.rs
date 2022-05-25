@@ -1,10 +1,12 @@
 use errors::ErrorHandler;
 use file_handler::FileSource;
 use lexer::Lexer;
+use parser::Parser;
 
 mod errors;
 pub mod file_handler;
 mod lexer;
+mod parser;
 mod types;
 
 fn main() {
@@ -13,10 +15,7 @@ fn main() {
         Err(err) => ErrorHandler::io_error(err),
     };
     let lex = Lexer::new(Box::new(fs));
-    for result in lex {
-        match result {
-            Ok(token) => print!("{}", token),
-            Err(_) => eprint!("Error"),
-        }
-    }
+    let mut parser = Parser::new(Box::new(lex), false);
+    let program = parser.parse();
+    print!("{:?}", program)
 }

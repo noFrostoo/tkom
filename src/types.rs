@@ -43,7 +43,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub enum TokenKind {
     Number(Decimal),
@@ -54,6 +54,9 @@ pub enum TokenKind {
     If,
     Else,
     Return,
+    Has,
+    For,
+    In,
     // brackets
     LeftBracket,
     RightBracket,
