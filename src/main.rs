@@ -8,6 +8,8 @@ pub mod file_handler;
 mod lexer;
 mod parser;
 mod types;
+mod executor;
+mod visitor;
 
 fn main() {
     let fs = match FileSource::new(String::from("testFile.ss")) {

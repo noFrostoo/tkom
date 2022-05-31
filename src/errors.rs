@@ -1,6 +1,5 @@
 use crate::{
-    parser::Expression,
-    types::{Position, TokenKind},
+    types::*,
 };
 use std::{io::Error, process::exit};
 
@@ -54,6 +53,24 @@ pub enum ErrorKind {
     },
     BlockExpected {},
     NoFunctions,
+    NoField{},
+    CompareDifferentTypes,
+    NumberOverflow,
+    NotAllowedOperation,
+    ObjectExpected,
+    UnknownFunction,
+    NotCallable,
+    AccessOnFunction,
+    AccessOnNumber,
+    AccessOnString,
+    AccessOnBool,
+    UnexpectedExpression,
+    AccessNone,
+    NotFoundScope,
+    NotDefined,
+    NotAssignable,
+    BadType,
+    NotIterable,
 }
 
 pub struct ErrorHandler;
@@ -160,6 +177,24 @@ impl ErrorHandler {
             ErrorKind::DuplicateFunction { name } => todo!(),
             ErrorKind::DuplicateParameters { name } => todo!(),
             ErrorKind::BlockExpected {} => todo!(),
+            ErrorKind::NoField {  } => todo!(),
+            ErrorKind::CompareDifferentTypes => todo!(),
+            ErrorKind::NumberOverflow => todo!(),
+            ErrorKind::NotAllowedOperation => todo!(),
+            ErrorKind::ObjectExpected => todo!(),
+            ErrorKind::UnknownFunction => todo!(),
+            ErrorKind::NotCallable => todo!(),
+            ErrorKind::AccessOnFunction => todo!(),
+            ErrorKind::AccessOnNumber => todo!(),
+            ErrorKind::AccessOnString => todo!(),
+            ErrorKind::AccessOnBool => todo!(),
+            ErrorKind::UnexpectedExpression => todo!(),
+            ErrorKind::AccessNone => todo!(),
+            ErrorKind::NotFoundScope => todo!(),
+            ErrorKind::NotDefined => todo!(),
+            ErrorKind::NotAssignable => todo!(),
+            ErrorKind::BadType => todo!(),
+            ErrorKind::NotIterable => todo!(),
         }
     }
 }

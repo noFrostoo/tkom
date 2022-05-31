@@ -1,3 +1,5 @@
+use std::{collections::{VecDeque, HashMap}, rc::Rc};
+
 use rust_decimal::Decimal;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -169,5 +171,263 @@ mod test {
         assert_eq!(pos.offset, 2);
         assert_eq!(pos.line, LINE + 1);
         assert_eq!(pos.column, 0);
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Program {
+    pub functions: HashMap<String, Function>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Function {
+    pub name: Rc<String>, //not optimized
+    pub parameters: VecDeque<Parameter>,
+    pub block: Block,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Parameter {
+    pub name: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Argument {
+    pub expr: Expression,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Block {
+    pub statements: VecDeque<Statement>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum Statement {
+    Expression(Expression),
+    If(If),
+    For(For),
+    While(While),
+    Return(Return),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum Expression {
+    OrExpression(OrExpression),
+    AndExpression(AndExpression),
+    EqualExpression(EqualExpression),
+    RelationalExpression(RelationalExpression),
+    AdditiveExpression(AdditiveExpression),
+    MultiplicativeExpression(MultiplicativeExpression),
+    UnaryExpression(NotExpression),
+    HasExpression(HasExpression),
+    StringLiteral(String),
+    Number(Decimal),
+    VariableExpression(VariableExpression),
+    AssignmentExpression(AssignmentExpression),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct AssignmentExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub operator: AssignmentOperator,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct OrExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct AndExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct EqualExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub operator: EqualOperator,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct RelationalExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub operator: RelationOperator,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct MultiplicativeExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub operator: MultiplicationOperator,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct AdditiveExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub operator: AdditionOperator,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct NotExpression {
+    pub expression: Box<Expression>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct HasExpression {
+    pub expression: Box<Expression>,
+    pub ident: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct StringLiteral {
+    pub content: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Number {
+    pub number: Decimal,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct VariableExpression {
+    pub path: VecDeque<FunCallOrMember>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct FunCallOrMember {
+    pub name: String,
+    pub arguments: Option<VecDeque<Argument>>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct If {
+    pub condition: Option<Box<Expression>>,
+    pub block: Box<Block>,
+    pub else_block: Option<Box<If>>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct For {
+    pub iterator: String,
+    pub object: Box<Expression>,
+    pub block: Box<Block>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct While {
+    pub condition: Box<Expression>,
+    pub block: Box<Block>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Return {
+    pub expression: Option<Box<Expression>>,
+}
+
+pub const NOT_OPERATOR: TokenKind = TokenKind::Not;
+pub const OR_OPERATOR: TokenKind = TokenKind::Or;
+pub const AND_OPERATOR: TokenKind = TokenKind::And;
+pub const SUBTRACT_OPERATOR: TokenKind = TokenKind::Subtraction;
+pub const HAS_OPERATOR: TokenKind = TokenKind::Has;
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum AssignmentOperator {
+    Assignment,
+    AddAssignment,
+    SubtractAssignment,
+    MultiplicationAssignment,
+    DivisionAssignment,
+    ModuloAssignment,
+}
+
+impl AssignmentOperator {
+    pub fn remap(token: Token) -> Option<AssignmentOperator> {
+        match token.kind {
+            TokenKind::Assignment => Some(AssignmentOperator::Assignment),
+            TokenKind::AddAssignment => Some(AssignmentOperator::AddAssignment),
+            TokenKind::SubtractAssignment => Some(AssignmentOperator::SubtractAssignment),
+            TokenKind::MultiplicationAssignment => {
+                Some(AssignmentOperator::MultiplicationAssignment)
+            }
+            TokenKind::DivisionAssignment => Some(AssignmentOperator::DivisionAssignment),
+            TokenKind::ModuloAssignment => Some(AssignmentOperator::ModuloAssignment),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum AdditionOperator {
+    Add,
+    Subtract,
+}
+
+impl AdditionOperator {
+    pub fn remap(token: Token) -> Option<AdditionOperator> {
+        match token.kind {
+            TokenKind::Addition => Some(AdditionOperator::Add),
+            TokenKind::Subtraction => Some(AdditionOperator::Subtract),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum MultiplicationOperator {
+    Multiplication,
+    Division,
+    Modulo,
+}
+
+impl MultiplicationOperator {
+    pub fn remap(token: Token) -> Option<MultiplicationOperator> {
+        match token.kind {
+            TokenKind::Multiplication => Some(MultiplicationOperator::Multiplication),
+            TokenKind::Division => Some(MultiplicationOperator::Division),
+            TokenKind::Modulo => Some(MultiplicationOperator::Modulo),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum RelationOperator {
+    Grater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+}
+
+impl RelationOperator {
+    pub fn remap(token: Token) -> Option<RelationOperator> {
+        match token.kind {
+            TokenKind::GraterThen => Some(RelationOperator::Grater),
+            TokenKind::LessThen => Some(RelationOperator::Less),
+            TokenKind::GraterEqualThen => Some(RelationOperator::GreaterEqual),
+            TokenKind::LessEqualThen => Some(RelationOperator::LessEqual),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum EqualOperator {
+    Equal,
+    NotEqual,
+}
+
+impl EqualOperator {
+    pub fn remap(token: Token) -> Option<EqualOperator> {
+        match token.kind {
+            TokenKind::Equal => Some(EqualOperator::Equal),
+            TokenKind::NotEqual => Some(EqualOperator::NotEqual),
+            _ => None,
+        }
     }
 }
