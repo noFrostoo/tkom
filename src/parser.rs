@@ -11,7 +11,6 @@ use crate::{
     types::*,
 };
 
-
 pub struct Parser {
     lexer: Box<dyn TLexer>,
     fail_fast: bool,
@@ -34,7 +33,7 @@ impl Parser {
                     name: func.name.to_string(),
                 }),
                 None => {
-                    functions.insert(String::from(func.name.as_ref()), func.clone());
+                    functions.insert(String::from(func.name.clone()), func.clone());
                 }
             }
         }
@@ -86,7 +85,7 @@ impl Parser {
         }
 
         Some(Function {
-            name: Rc::new(name),
+            name: name.clone(),
             parameters: parameters,
             block: block,
         })
@@ -796,7 +795,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([
                         Parameter {
                             name: "args".to_string(),
@@ -820,7 +819,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -868,7 +867,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -889,7 +888,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -928,7 +927,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -976,7 +975,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1063,7 +1062,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1129,7 +1128,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1177,7 +1176,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1220,7 +1219,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1275,7 +1274,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1341,7 +1340,7 @@ mod tests {
     parser_test!(if_else_if_else_parsing, "main(args) { if (xx != 1) { xx + 12; } else if (xx == 1) { xx + 13; } else { xx + 11; }  }", Program{
         functions: HashMap::from([
             ("main".to_string(),  
-            Function{name: Rc::new(String::from("main")), 
+            Function{name: String::from("main"), 
             parameters: VecDeque::from_iter([
                 Parameter{name: "args".to_string()}]), 
                 block: Block { statements: VecDeque::from_iter([
@@ -1409,7 +1408,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1500,7 +1499,7 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    name: Rc::new(String::from("main")),
+                    name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1598,5 +1597,4 @@ mod tests {
         "main(args) { x.xx() } main(args) { x.xx() }"
     );
     parser_test!(FAIL: syntax_error22, "main(args, args) {x.x();}");
-
 }

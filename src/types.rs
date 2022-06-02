@@ -1,4 +1,7 @@
-use std::{collections::{VecDeque, HashMap}, rc::Rc};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 use rust_decimal::Decimal;
 
@@ -181,7 +184,7 @@ pub struct Program {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Function {
-    pub name: Rc<String>, //not optimized
+    pub name: String, //not optimized
     pub parameters: VecDeque<Parameter>,
     pub block: Block,
 }

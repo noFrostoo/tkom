@@ -1,6 +1,4 @@
-use crate::{
-    types::*,
-};
+use crate::{types::*, executor::Value};
 use std::{io::Error, process::exit};
 
 #[derive(Debug, Clone)]
@@ -53,17 +51,14 @@ pub enum ErrorKind {
     },
     BlockExpected {},
     NoFunctions,
-    NoField{},
+    NoField {},
     CompareDifferentTypes,
     NumberOverflow,
     NotAllowedOperation,
     ObjectExpected,
     UnknownFunction,
     NotCallable,
-    AccessOnFunction,
-    AccessOnNumber,
-    AccessOnString,
-    AccessOnBool,
+    IllegalAccess{on:Value, want:String},
     UnexpectedExpression,
     AccessNone,
     NotFoundScope,
@@ -71,6 +66,14 @@ pub enum ErrorKind {
     NotAssignable,
     BadType,
     NotIterable,
+    BadInputNumber {
+        err_msg: String,
+    },
+    MismatchedArgumentsLen {
+        expected: usize,
+        got: usize,
+        function: String,
+    },
 }
 
 pub struct ErrorHandler;
@@ -174,27 +177,30 @@ impl ErrorHandler {
             ErrorKind::NoFunctions {} => {
                 format!("No functions in file")
             }
-            ErrorKind::DuplicateFunction { name } => todo!(),
-            ErrorKind::DuplicateParameters { name } => todo!(),
-            ErrorKind::BlockExpected {} => todo!(),
-            ErrorKind::NoField {  } => todo!(),
-            ErrorKind::CompareDifferentTypes => todo!(),
-            ErrorKind::NumberOverflow => todo!(),
-            ErrorKind::NotAllowedOperation => todo!(),
-            ErrorKind::ObjectExpected => todo!(),
-            ErrorKind::UnknownFunction => todo!(),
-            ErrorKind::NotCallable => todo!(),
-            ErrorKind::AccessOnFunction => todo!(),
-            ErrorKind::AccessOnNumber => todo!(),
-            ErrorKind::AccessOnString => todo!(),
-            ErrorKind::AccessOnBool => todo!(),
-            ErrorKind::UnexpectedExpression => todo!(),
-            ErrorKind::AccessNone => todo!(),
-            ErrorKind::NotFoundScope => todo!(),
-            ErrorKind::NotDefined => todo!(),
-            ErrorKind::NotAssignable => todo!(),
-            ErrorKind::BadType => todo!(),
-            ErrorKind::NotIterable => todo!(),
+            ErrorKind::DuplicateFunction { name } => format!("error1"),
+            ErrorKind::DuplicateParameters { name } => format!("error2"),
+            ErrorKind::BlockExpected {} => format!("error3"),
+            ErrorKind::NoField {} => format!("error4"),
+            ErrorKind::CompareDifferentTypes => format!("error5"),
+            ErrorKind::NumberOverflow => format!("error6"),
+            ErrorKind::NotAllowedOperation => format!("error7"),
+            ErrorKind::ObjectExpected => format!("error8"),
+            ErrorKind::UnknownFunction => format!("error9"),
+            ErrorKind::NotCallable => format!("error10"),
+            ErrorKind::IllegalAccess { on, want } => format!("error11"),
+            ErrorKind::UnexpectedExpression => format!("error15"),
+            ErrorKind::AccessNone => format!("error16"),
+            ErrorKind::NotFoundScope => format!("error17"),
+            ErrorKind::NotDefined => format!("error18"),
+            ErrorKind::NotAssignable => format!("error19"),
+            ErrorKind::BadType => format!("error20"),
+            ErrorKind::NotIterable => format!("error21"),
+            ErrorKind::BadInputNumber { err_msg } => todo!(),
+            ErrorKind::MismatchedArgumentsLen {
+                expected,
+                got,
+                function,
+            } => todo!(),
         }
     }
 }
