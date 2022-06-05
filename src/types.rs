@@ -187,6 +187,7 @@ pub struct Function {
     pub name: String, //not optimized
     pub parameters: VecDeque<Parameter>,
     pub block: Block,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -308,6 +309,7 @@ pub struct Number {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct VariableExpression {
+    pub position: Position,
     pub path: VecDeque<FunCallOrMember>,
 }
 
@@ -322,6 +324,7 @@ pub struct If {
     pub condition: Option<Box<Expression>>,
     pub block: Box<Block>,
     pub else_block: Option<Box<If>>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -329,17 +332,20 @@ pub struct For {
     pub iterator: String,
     pub object: Box<Expression>,
     pub block: Box<Block>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct While {
     pub condition: Box<Expression>,
     pub block: Box<Block>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Return {
     pub expression: Option<Box<Expression>>,
+    pub position: Position
 }
 
 pub const NOT_OPERATOR: TokenKind = TokenKind::Not;

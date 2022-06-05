@@ -10,3 +10,4 @@ ascii = "1.0.0"
 utf8-read = "0.4.0"
 rust_decimal = "1.23.0"
 rust_decimal_macros = "1.23"
+clap = { version = "3.1.18", features = ["derive"] }

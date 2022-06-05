@@ -96,9 +96,10 @@ impl Object {
 
         for elem in self.fields.borrow() {
             obj_str.push_back(elem.1.to_string());
+            obj_str.push_back(",".to_string());
         }
-
-        obj_str.push_back("<".to_string());
+        obj_str.pop_back();
+        obj_str.push_back(">".to_string());
         String::from_iter(obj_str)
     }
 }
@@ -133,6 +134,8 @@ pub struct FunCallContext {
     scopes: VecDeque<Scope>,
     cur_return: Value,
     returnable: bool,
+    stack_trace: VecDeque<Statement>,
+    call_pos: Position
 }
 
 impl FunCallContext {
@@ -190,6 +193,7 @@ TODO: ADD NONE
 
 */
 
+
 const MAIN_FUNC_NAME: &str = "main";
 
 pub struct Executor {
@@ -197,15 +201,17 @@ pub struct Executor {
     stack: VecDeque<FunCallContext>,
     standard_lib: HashMap<String, fn(&mut Executor, VecDeque<Argument>) -> Value>,
     last_ret: Value,
+    stack_trace_len: usize
 }
 
 impl Executor {
-    pub fn new() -> Self {
+    pub fn new(stack_trace_len: usize) -> Self {
         let mut s = Self {
             functions: HashMap::new(),
             stack: VecDeque::new(),
             standard_lib: HashMap::new(),
             last_ret: Value::None,
+            stack_trace_len
         };
         s.init_std_lib();
         s
@@ -215,17 +221,18 @@ impl Executor {
 impl Visitor<Value> for Executor {
     fn visit_program(&mut self, n: &Program) -> Value {
         self.functions = n.functions.clone();
-        self.last_ret = self.visit_function_call(MAIN_FUNC_NAME.to_string(), VecDeque::new());
+        let pos = n.functions.get(&MAIN_FUNC_NAME.to_string()).unwrap().position.clone();
+        self.last_ret = self.visit_function_call(MAIN_FUNC_NAME.to_string(), VecDeque::new(), pos);
         return self.last_ret.clone();
     }
 
-    fn visit_function_call(&mut self, name: String, arguments: VecDeque<Argument>) -> Value {
+    fn visit_function_call(&mut self, name: String, arguments: VecDeque<Argument>, pos: Position) -> Value {
         let value;
         //todo std jako normalne 
         if let Some(func) = self.standard_lib.get(&name) {
             value = func(self, arguments);
         } else {
-            value = self.user_function_call(name, arguments);
+            value = self.user_function_call(name, arguments, pos);
         }
 
         value
@@ -239,6 +246,7 @@ impl Visitor<Value> for Executor {
         self.current_context().new_scope();
 
         for stmt in n.statements.to_owned() {
+            self.add_to_stack_trace(&stmt);
             match stmt {
                 Statement::Expression(e) => {
                     self.visit_expr(&e);
@@ -303,7 +311,7 @@ impl Visitor<Value> for Executor {
         let iterator = self.visit_expr(&e.object);
         if let Value::Object(o) = iterator {
 
-            for elem in (*o).borrow_mut().to_owned().fields {
+            for elem in (*o).borrow().to_owned().fields {
                 self.current_context()
                     .scopes
                     .back_mut()
@@ -330,30 +338,18 @@ impl Visitor<Value> for Executor {
                 }
             }
         } else {
-            self.error(ErrorKind::NotIterable);
+            self.error(ErrorKind::NotIterable{ value: iterator, pos: e.position.clone() });
         }
 
         Value::None
     }
 
     fn visit_while(&mut self, e: &While) -> Value {
-        let mut expr = self.visit_expr(&e.condition);
-        let mut value = self.value_to_bool(&expr);
-
-        if !value {
-            return Value::None;
-        }
-
-        expr = self.visit_expr(&e.condition);
-        value = self.value_to_bool(&expr);
-        while value {
+        while self.evaluate_condition(&e.condition) {
             self.visit_block(&e.block);
             if self.current_context().returnable {
                 return Value::None;
             }
-            //TODO: move to while()
-            expr = self.visit_expr(&e.condition);
-            value = self.value_to_bool(&expr);
         }
 
         Value::None
@@ -424,30 +420,27 @@ impl Visitor<Value> for Executor {
             }
         }
 
-        ErrorHandler::fatal(ErrorKind::CompareDifferentTypes);
+        ErrorHandler::fatal(ErrorKind::CompareDifferentTypes{ left: values.0, right: values.1, pos: expr.position.clone() });
     }
 
     fn visit_additive_expression(&mut self, expr: &AdditiveExpression) -> Value {
         let values = (self.visit_expr(&expr.left), self.visit_expr(&expr.right));
+        let copy = values.clone();
 
         if let (Value::Object(o1), Value::Object(o2)) = values {
             return Value::Object(self.add_objects(o1, o2));
-        }
-
-        if let (Value::Number(n1), Value::Number(n2)) = values {
+        } else if let (Value::Number(n1), Value::Number(n2)) = values {
             match expr.operator {
                 AdditionOperator::Add => match n1.checked_add(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow),
+                    None => self.error(ErrorKind::NumberOverflow{ number: n1, other: n2, operation: "+".to_string(), pos: expr.position.clone() }),
                 },
                 AdditionOperator::Subtract => match n1.checked_sub(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow),
+                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "-".to_string(), pos: expr.position.clone()}),
                 },
             }
-        }
-
-        if let (Value::String(s1), Value::String(s2)) = values {
+        } else if let (Value::String(s1), Value::String(s2)) = values {
             match expr.operator {
                 AdditionOperator::Add => {
                     let s = s1.clone();
@@ -455,11 +448,11 @@ impl Visitor<Value> for Executor {
                     let added = s + &other;
                     return Value::String(added);
                 }
-                AdditionOperator::Subtract => self.error(ErrorKind::NotAllowedOperation),
+                AdditionOperator::Subtract => self.error(ErrorKind::NotAllowedOperation{ value: Value::String("".to_string()), other: Value::String("".to_string()), name: "subract".to_string(), pos: expr.position.clone() }),
             }
         }
 
-        self.error(ErrorKind::NotAllowedOperation);
+        self.error(ErrorKind::NotAllowedOperation{ value: copy.0, other: copy.1, name: "subtract".to_string(), pos: expr.position.clone() });
         Value::Number(Decimal::new(0, 0))
     }
 
@@ -470,20 +463,20 @@ impl Visitor<Value> for Executor {
             match expr.operator {
                 MultiplicationOperator::Multiplication => match n1.checked_mul(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow),
+                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "*".to_string(), pos: expr.position.clone()}),
                 },
                 MultiplicationOperator::Division => match n1.checked_div(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow),
+                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "/".to_string(), pos: expr.position.clone()}),
                 },
                 MultiplicationOperator::Modulo => match n1.checked_rem(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow),
+                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "%".to_string(), pos: expr.position.clone()}),
                 },
             }
         }
 
-        self.error(ErrorKind::NotAllowedOperation);
+        self.error(ErrorKind::NotAllowedOperation{ value: values.0, other: values.1, name: "subract".to_string(), pos: expr.position.clone() });
         Value::None
     }
 
@@ -512,7 +505,7 @@ impl Visitor<Value> for Executor {
                 return Value::Bool(!b);
             }
             Value::Function(_) => {
-                self.error(ErrorKind::NotAllowedOperation);
+                self.error(ErrorKind::NotAllowedOperation{ value: left, other: Value::None, name: "not".to_string(), pos: expr.position.clone() });
                 Value::Bool(true)
             }
             Value::None => {
@@ -526,7 +519,7 @@ impl Visitor<Value> for Executor {
         if let Value::Object(o) = obj {
             return Value::Bool((*o).borrow_mut().has(expr.ident.clone()));
         } else {
-            self.error(ErrorKind::ObjectExpected);
+            self.error(ErrorKind::ObjectExpected{ what: "has".to_string(), pos: expr.position.clone() });
             Value::Bool(false)
         }
     }
@@ -537,49 +530,32 @@ impl Visitor<Value> for Executor {
             if let Some(arguments) = elem.arguments {
                 match val.clone() {
                     Value::Object(o) => {
-                        if let Some(rc) = (*o).borrow_mut().access_field(&elem.name) {
+                        if let Some(rc) = (*o).borrow().access_field(&elem.name) {
                             if let Value::Function(f) = rc {
-                                val = self.user_function_call(f, arguments);
+                                val = self.user_function_call(f.clone(), arguments, expr.position.clone());
                             } else {
-                                self.error(ErrorKind::NotCallable);
+                                self.error(ErrorKind::NotCallable{ value: val.clone(), pos: expr.position.clone() });
                             }
                         } else {
-                            self.error(ErrorKind::NoField {})
+                            self.error(ErrorKind::NoField{ object: Rc::clone(&o), field: elem.name.clone(), pos: expr.position.clone() })
                         }
                     }
-                    Value::Number(_) => todo!(),
-                    Value::String(_) => todo!(),
-                    Value::Bool(_) => todo!(),
                     Value::None => {
-                        val = self.visit_function_call(elem.name, arguments);
+                        val = self.visit_function_call(elem.name.clone(), arguments, expr.position.clone());
                     }
                     _ => {self.error(ErrorKind::IllegalAccess { on: val.clone(), want: elem.name.clone() })}
                 }
-                //TODO: functions on build - in types ?
-                /*
-                    function on string: len
-                */
             } else {
                 match val.clone() {
-                    Value::Object(o) => match (*o).borrow_mut().access_field(&elem.name) {
+                    Value::Object(o) => match (*o).borrow().access_field(&elem.name) {
                         Some(v) => val = v,
-                        None => self.error(ErrorKind::NoField {}),
+                        None => self.error(ErrorKind::NoField{ object: o.clone(), field: elem.name.clone(), pos: expr.position.clone() }),
                     },
                     Value::None => {
-                        let mut accessed = false;
-                        if let Some(_) = self.functions.get(&elem.name) {
-                            val = Value::Function(elem.name.clone());
-                            accessed = true;
-                        }
-
-                        if let Some(v) = self.current_context().find_var_in_scopes(&elem.name) {
-                            val = v.clone();
-                            accessed = true;
-                        }
-                        print!("{}", elem.name);
-                        //TODO: test Print = Print
-                        if !accessed {
-                            self.error(ErrorKind::NotDefined);
+                        if let Some(v) = self.find_value(&elem.name) {
+                            val = v;
+                        } else {
+                            self.error(ErrorKind::NotDefined{ name: elem.name.clone(), pos: expr.position.clone() });
                         }
                     },
                     _ => {self.error(ErrorKind::IllegalAccess { on: val, want: elem.name.clone() }); return Value::None}
@@ -591,33 +567,34 @@ impl Visitor<Value> for Executor {
     }
 
     fn visit_assignment_expression(&mut self, expr: &AssignmentExpression) -> Value {
-        let left;
+        let mut left;
         let right = self.visit_expr(&expr.right);
         //TODO: flaga
         if let Expression::VariableExpression(mut e) = *expr.left.to_owned() {
             let name = e.path[0].name.clone(); 
             if e.path.len() == 1 {
-                match self.current_context().find_var_in_scopes(&name).clone() {
+                match self.find_value(&name) {
                     Some(val) => {
                         left = val.clone();
                         match expr.operator {
                             AssignmentOperator::Assignment => {
-                                self.current_context().update_var_in_scopes(&name, right);
+                                self.update_value(&name, right.clone());
+                                left = right;
                             }
                             AssignmentOperator::AddAssignment => {
-                                self.add_assignment(&name, &left, &right)
+                                left = self.add_assignment(&name, &left, &right, expr.position.clone());
                             }
                             AssignmentOperator::SubtractAssignment => {
-                                self.subtract_assignment(&name, &left, &right)
+                                left = self.subtract_assignment(&name, &left, &right, expr.position.clone());
                             }
                             AssignmentOperator::MultiplicationAssignment => {
-                                self.mul_assignment(&name, &left, &right)
+                                left = self.mul_assignment(&name, &left, &right, expr.position.clone());
                             }
                             AssignmentOperator::DivisionAssignment => {
-                                self.div_assignment(&name, &left, &right)
+                                left = self.div_assignment(&name, &left, &right, expr.position.clone());
                             }
                             AssignmentOperator::ModuloAssignment => {
-                                self.modulo_assignment(&name, &left, &right)
+                                left = self.modulo_assignment(&name, &left, &right, expr.position.clone());
                             }
                         }
                     }
@@ -631,7 +608,7 @@ impl Visitor<Value> for Executor {
                                 .insert_var(&name, right.clone());
                                 return right;
                         } else {
-                            self.error(ErrorKind::NotDefined);
+                            self.error(ErrorKind::NotDefined{ name: name.clone(), pos: expr.position.clone() });
                             return Value::None;
                         };
                     }
@@ -640,7 +617,7 @@ impl Visitor<Value> for Executor {
                 //len can be > 2, can do this safely
                 let last = e.path.remove(e.path.len() - 1).unwrap();
                 if let Some(_) = last.arguments {
-                    self.error(ErrorKind::NotCallable);
+                    self.error(ErrorKind::BadAssign{ pos: expr.position.clone() });
                     return Value::None;
                 }
 
@@ -651,12 +628,12 @@ impl Visitor<Value> for Executor {
                             (*o).borrow_mut().entry(&last.name, right);
                         }
                         AssignmentOperator::AddAssignment => {
-                            self.add_assignment_object(&last.name, o, &right);
+                            self.add_assignment_object(&last.name, o, &right, expr.position.clone());
                         }
-                        _ => {self.error(ErrorKind::NotAllowedOperation)}
+                        _ => {self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right, name: "%=".to_string(), pos:expr.position.clone() })}
                     }
                 } else {
-                    self.error(ErrorKind::NotAssignable);
+                    self.error(ErrorKind::NotAssignable{ name, pos: expr.position.clone() });
                     return Value::None;
                 }
             }
@@ -679,6 +656,39 @@ impl Visitor<Value> for Executor {
 }
 
 impl Executor {
+    fn find_value(&mut self, name: &String) -> Option<Value> {
+        if let Some(_) = self.functions.get(name) {
+            return Some(Value::Function(name.clone()))
+        }
+
+        if let Some(_) = self.standard_lib.get(name) {
+            return Some(Value::Function(name.clone()))
+        }
+
+        if let Some(v) = self.current_context().find_var_in_scopes(name) {
+            return Some(v.to_owned())
+        }
+
+        None
+    }
+
+    fn update_value(&mut self, name: &String, value: Value) {
+        if let Some(_) = self.functions.get(name) {
+            return self.error(ErrorKind::NotUpdatable { name: name.clone(), value: value })
+        }
+
+        if let Some(_) = self.standard_lib.get(name) {
+            return self.error(ErrorKind::NotUpdatable { name: name.clone(), value: value })
+        }
+
+        self.current_context().update_var_in_scopes(name, value)
+    }
+
+    fn evaluate_condition(&mut self, e: &Expression) -> bool {
+        let expr = self.visit_expr(e);
+        self.value_to_bool(&expr) 
+    }
+
     fn logical_cond(&mut self, left_expr: &Expression, right_expr: &Expression) -> (bool, bool) {
         let left = self.visit_expr(left_expr);
         let right = self.visit_expr(right_expr);
@@ -702,7 +712,7 @@ impl Executor {
         }
     }
 
-    fn add_assignment_object(&mut self, name: &String, left: ObjectRef, right: &Value) {
+    fn add_assignment_object(&mut self, name: &String, left: ObjectRef, right: &Value, pos: Position) {
         let mut obj = (*left).borrow_mut();
         match obj.access_field(name) {
             Some(v) => match v {
@@ -710,17 +720,17 @@ impl Executor {
                     if let Value::Object(o2) = right {
                         obj.add_field(name, Value::Object(self.add_objects(o1, Rc::clone(o2))));
                     } else {
-                        self.error(ErrorKind::BadType)
+                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::Object(Rc::new(RefCell::new(Object::new()))), pos })
                     }
                 }
                 Value::Number(n1) => {
                     if let Value::Number(n2) = right {
                         match n1.checked_add(*n2) {
                             Some(n) => obj.add_field(name, Value::Number(n)),
-                            None => self.error(ErrorKind::NumberOverflow),
+                            None => self.error(ErrorKind::NumberOverflow{number: n1, other: *n2, operation: "+=".to_string(), pos:pos}),
                         }
                     } else {
-                        self.error(ErrorKind::BadType)
+                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::Number(Decimal::new(0, 0)), pos })
                     }
                 }
                 Value::String(s1) => {
@@ -730,128 +740,146 @@ impl Executor {
                         let added = s + &other;
                         obj.add_field(name, Value::String(added));
                     } else {
-                        self.error(ErrorKind::BadType)
+                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::String("_".to_string()), pos })
                     }
                 }
-                _ => {self.error(ErrorKind::BadType)}
+                _ => {self.error(ErrorKind::BadType{ value: Value::Object(left.clone()), expected: Value::Object(Rc::new(RefCell::new(Object::new()))), pos })}
             },
-            None => {self.error(ErrorKind::NoField {  })},
+            None => {self.error(ErrorKind::NoField{ object: Rc::clone(&left), field: name.clone(), pos  })},
         }
     }
 
-    fn add_assignment(&mut self, name: &String, left: &Value, right: &Value) {
+    fn add_assignment(&mut self, name: &String, left: &Value, right: &Value, pos: Position) -> Value {
         let values = (left, right);
 
         if let (Value::Object(o1), Value::Object(o2)) = values {
             let added = self.add_objects(Rc::clone(o1), Rc::clone(o2));
-            self.current_context()
-                .update_var_in_scopes(name, Value::Object(added));
-            return;
+            println!("{}",(*added).borrow().to_string());
+            self.update_value(name, Value::Object(added.clone()));
+            return Value::Object(added);
         }
 
         if let (Value::String(s1), Value::String(s2)) = values {
             let s = s1.clone();
             let other = s2.clone();
             let added = s + &other;
-            self.current_context()
-                .update_var_in_scopes(name, Value::String(added));
-            return;
+            self.update_value(name, Value::String(added.clone()));
+            return Value::String(added);
         }
 
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_add(*n2) {
-                Some(n) => self
-                    .current_context()
-                    .update_var_in_scopes(name, Value::Number(n)),
-                None => self.error(ErrorKind::NumberOverflow),
+                Some(n) => {
+                    self.update_value(name, Value::Number(n)); 
+                    return Value::Number(n);
+                },
+                None => {self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "+=".to_string(), pos: pos}); return Value::None},
             }
-            return;
         }
 
-        self.error(ErrorKind::NotAllowedOperation);
+        self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+        Value::None
     }
 
-    fn subtract_assignment(&mut self, name: &String, left: &Value, right: &Value) {
+    fn subtract_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value{
         let values = (left, right);
 
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_sub(*n2) {
-                Some(n) => self
-                    .current_context()
-                    .update_var_in_scopes(name, Value::Number(n)),
-                None => self.error(ErrorKind::NumberOverflow),
+                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
+                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "-=".to_string(), pos: pos}),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation);
+            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
         }
+
+        Value::None
     }
 
-    fn mul_assignment(&mut self, name: &String, left: &Value, right: &Value) {
+    fn mul_assignment(&mut self, name: &String, left: &Value, right: &Value, pos: Position) -> Value{
         let values = (left, right);
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_mul(*n2) {
-                Some(n) => self
-                    .current_context()
-                    .update_var_in_scopes(name, Value::Number(n)),
-                None => self.error(ErrorKind::NumberOverflow),
+                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
+                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "*=".to_string(), pos: pos}),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation);
+            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
         }
+
+        Value::None
     }
 
-    fn div_assignment(&mut self, name: &String, left: &Value, right: &Value) {
+    fn div_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value {
         let values = (left, right);
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_div(*n2) {
-                Some(n) => self
-                    .current_context()
-                    .update_var_in_scopes(name, Value::Number(n)),
-                None => self.error(ErrorKind::NumberOverflow),
+                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
+                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "/=".to_string(), pos: pos}),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation);
+            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
         }
+
+        Value::None
     }
 
-    fn modulo_assignment(&mut self, name: &String, left: &Value, right: &Value) {
+    fn modulo_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value{
         let values = (left, right);
         if let (Value::Number(n1), Value::Number(mut n2)) = values {
             match n1.checked_rem(n2) {
-                Some(n) => self
-                    .current_context()
-                    .update_var_in_scopes(name, Value::Number(n)),
-                None => self.error(ErrorKind::NumberOverflow),
+                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
+                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: n2, operation: "%=".to_string(), pos: pos}),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation);
+            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
         }
+
+        Value::None
     }
 
     fn add_objects(&mut self, left: ObjectRef, right: ObjectRef) -> ObjectRef {
         let copy = Rc::new(RefCell::new((*left).borrow_mut().clone()));
         let right_ref: ObjectRef = Rc::clone(&right);
         for field in (*right_ref).borrow_mut().to_owned().fields {
-            (*copy).borrow_mut().add_field(&field.0, field.1)
+            (*copy).borrow_mut().add_field(&field.0, field.1);
+            print!("{}", (*copy).borrow().to_string());
         }
 
         copy
     }
 
-    fn error(&mut self, err: ErrorKind) {
-        //TODO: stack trace
-        ErrorHandler::fatal(err)
+    fn error(&mut self, err: ErrorKind) -> () {
+        self.print_stack_trace();
+        ErrorHandler::fatal(err);
+        exit(1)
     }
 
     fn current_context(&mut self) -> &mut FunCallContext {
         return self.stack.back_mut().unwrap();
     }
 
-    fn user_function_call(&mut self, name: String, arguments: VecDeque<Argument>) -> Value {
+    fn add_to_stack_trace(&mut self, stmt: &Statement) {
+        if self.current_context().stack_trace.len() >= self.stack_trace_len {
+            self.current_context().stack_trace.pop_front();
+        }
+        self.current_context().stack_trace.push_back(stmt.clone());
+    }
+
+    fn print_stack_trace(&self) {
+        for func in self.stack.borrow() {
+            println!("<{}>call:o{}:l:{}:c:{}", func.name.clone(), 1, 1, 1);
+            for stmt in func.stack_trace.clone() {
+                println!("| {:?}", stmt);
+            }
+        }
+    }
+
+    fn user_function_call(&mut self, name: String, arguments: VecDeque<Argument>, pos: Position) -> Value {
         let func = match self.functions.get(&name) {
             Some(f) => f.clone(),
             None => {
-                self.error(ErrorKind::UnknownFunction);
+                self.error(ErrorKind::UnknownFunction{ name, pos });
                 return Value::None;
             }
         };
@@ -869,6 +897,8 @@ impl Executor {
             scopes: VecDeque::new(),
             cur_return: Value::None,
             returnable: false,
+            stack_trace: VecDeque::new(),
+            call_pos: pos
         };
         
         let mut base_scope: Scope = Scope::new();
@@ -976,7 +1006,10 @@ impl Executor {
 
         let value = self.visit_argument(&arguments[0]);
 
-        return Value::String(value.to_string());
+        match Decimal::from_str(&*value.to_string()) {
+            Ok(d) => Value::Number(d),
+            Err(_) => {self.error(ErrorKind::BadConvert{number: value.to_string()}); Value::Number(Decimal::new(0,0))},
+        }
     }
 
     fn exit(&mut self, arguments: VecDeque<Argument>) -> Value {
@@ -1060,8 +1093,7 @@ mod test {
         let lex = Lexer::new(Box::new(test_source));
         let mut parser = Parser::new(Box::new(lex), false);
         let program = parser.parse();
-        print!("{:?}", program);
-        let mut executor = Executor::new();
+        let mut executor = Executor::new(12);
         executor.visit_program(&program)
     }
 
@@ -1506,8 +1538,92 @@ mod test {
     "main(){ x = Object(); y = x.val + 1; return y;  }"
     );
     executor_test!(
-        func_ptr_fail1,
-    "main(){ Print = Print; return Print;  }",
-    Value::Function("Print".to_string())
+        FAIL: func_ptr_fail1,
+        "main(){ Print = Print; return Print;  }"
     );
+    executor_test!(
+        convert_to_number,
+        "main(){ x = \"12.33\"; return Numeric(x); }",
+        Value::Number(Decimal::new(1233, 2))
+    );
+    executor_test!(
+        FAIL: convert_to_number_fail,
+        "main(){ x = \"xxx\"; return Numeric(x); }"
+    );
+    executor_test!(
+        convert_to_str,
+        "main(){ x = 12.33; return String(x); }",
+        Value::String("12.33".to_string())
+    );
+    executor_test!(
+        FAIL: types_operations,
+        "main(){ x = 12; l = \"4\"; return x + l; }"
+    );
+    executor_test!(
+        FAIL: types_operations8,
+        "main(){ x = 12; l = \"4\"; return x - l; }"
+    );
+    executor_test!(
+        FAIL: types_operations9,
+        "main(){ x = 12; l = \"4\"; return x * l; }"
+    );
+    executor_test!(
+        FAIL: types_operations10,
+        "main(){ x = 12; l = \"4\"; return x / l; }"
+    );
+    executor_test!(
+        FAIL: types_operations11,
+        "main(){ x = 12; l = \"4\"; return x % l; }"
+    );
+    executor_test!(
+        FAIL: types_operations2,
+        "main(){ x = Object(); l = \"4\"; return x + l; }"
+    );
+    executor_test!(
+        FAIL: types_operations3,
+        "main(){ x = Object(); l = 4; return x + l; }"
+    );
+    executor_test!(
+        types_operations4,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val2 = 2;
+            return x + l; 
+        }",  Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0))),
+            ("val2".to_string(), Value::Number(Decimal::new(2, 0)))])
+        })))
+    );
+    executor_test!(
+        types_operations5,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val2 = 2;
+            return x += l; 
+        }",  Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0))),
+            ("val2".to_string(), Value::Number(Decimal::new(2, 0)))])
+        })))
+    );
+    executor_test!(
+        types_operations6,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val = 2;
+            return x += l; 
+        }",  Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0)))])
+        })))
+    );
+    executor_test!(
+        FAIL: types_operations7,
+        "main(){ x = Print; l = \"4\"; return x + l; }"
+    );
+
 }
