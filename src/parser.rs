@@ -391,15 +391,16 @@ impl Parser {
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_and_expression()?;
-
         let mut operator = self.lexer.get_current_token().kind;
         while matches!(operator, OR_OPERATOR) {
             self.next_token();
             match self.try_parse_and_expression() {
                 Some(right) => {
+                    let pos = self.lexer.get_position();
                     left = Expression::OrExpression(OrExpression {
                         left: Box::new(left),
                         right: Box::new(right),
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -415,15 +416,16 @@ impl Parser {
 
     fn try_parse_and_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_equal_expression()?;
-
         let mut operator = self.lexer.get_current_token().kind;
         while matches!(operator, AND_OPERATOR) {
             self.next_token();
             match self.try_parse_equal_expression() {
                 Some(right) => {
+                    let pos = self.lexer.get_position();
                     left = Expression::AndExpression(AndExpression {
                         left: Box::new(left),
                         right: Box::new(right),
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -439,7 +441,7 @@ impl Parser {
 
     fn try_parse_equal_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_relational_expression()?;
-
+        let pos = self.lexer.get_position();
         if let Some(operator) = EqualOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_relational_expression() {
@@ -448,6 +450,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -462,7 +465,7 @@ impl Parser {
 
     fn try_parse_relational_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_additive_expression()?;
-
+        let pos = self.lexer.get_position();
         if let Some(operator) = RelationOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_additive_expression() {
@@ -471,6 +474,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -485,15 +489,16 @@ impl Parser {
 
     fn try_parse_additive_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_multiplicative_expression()?;
-
         while let Some(operator) = AdditionOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_multiplicative_expression() {
                 Some(right) => {
+                    let pos = self.lexer.get_position();
                     left = Expression::AdditiveExpression(AdditiveExpression {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -508,15 +513,16 @@ impl Parser {
 
     fn try_parse_multiplicative_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_unary_expression()?;
-
         while let Some(operator) = MultiplicationOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_multiplicative_expression() {
                 Some(right) => {
+                    let pos = self.lexer.get_position();
                     left = Expression::MultiplicativeExpression(MultiplicativeExpression {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -539,8 +545,10 @@ impl Parser {
                     got: self.lexer.get_current_token().kind,
                 }),
             };
+            let pos = self.lexer.get_position();
             return Some(Expression::UnaryExpression(NotExpression {
                 expression: Box::new(expression),
+                position: pos
             }));
         }
 
@@ -570,7 +578,7 @@ impl Parser {
 
     fn try_parse_has_expression(&mut self) -> Option<Expression> {
         let mut expression = self.try_parse_primary_expression()?;
-
+        let pos = self.lexer.get_position();
         let operator = self.lexer.get_current_token().kind;
         if matches!(operator, HAS_OPERATOR) {
             self.next_token();
@@ -579,6 +587,7 @@ impl Parser {
                 expression = Expression::HasExpression(HasExpression {
                     expression: Box::new(expression),
                     ident: ident,
+                    position: pos
                 });
             }
         }
@@ -621,7 +630,7 @@ impl Parser {
 
     fn try_parse_assignment_expression(&mut self) -> Option<Expression> {
         let mut left = self.try_parse_ident_expression()?;
-
+        let pos = self.lexer.get_position();
         if let Some(operator) = AssignmentOperator::remap(self.lexer.get_current_token()) {
             self.next_token();
             match self.try_parse_expression() {
@@ -630,6 +639,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
+                        position: pos
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -836,7 +846,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: AdditionOperator::Add
+                                    operator: AdditionOperator::Add,
+                                    position: Position { offset: 22, line: 1, column: 23 }
                                 }
                             )),
                             Statement::Expression(Expression::AdditiveExpression(
@@ -850,7 +861,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::StringLiteral("12".to_string())),
-                                    operator: AdditionOperator::Subtract
+                                    operator: AdditionOperator::Subtract,
+                                    position: Position { offset: 33, line: 1, column: 34 }
                                 }
                             ))
                         ])
@@ -909,7 +921,8 @@ mod tests {
                                         right: Box::new(Expression::StringLiteral(
                                             "12".to_string()
                                         )),
-                                        operator: AdditionOperator::Subtract
+                                        operator: AdditionOperator::Subtract,
+                                        position: Position { offset: 40, line: 1, column: 41 }
                                     }
                                 )))
                             })
@@ -942,7 +955,8 @@ mod tests {
                                         }]),
                                     }
                                 )),
-                                ident: "faf".to_string()
+                                ident: "faf".to_string(),
+                                position: Position { offset: 20, line: 1, column: 21 }
                             })),
                             Statement::Expression(Expression::HasExpression(HasExpression {
                                 expression: Box::new(Expression::VariableExpression(
@@ -959,7 +973,8 @@ mod tests {
                                         ]),
                                     }
                                 )),
-                                ident: "XD".to_string()
+                                ident: "XD".to_string(),
+                                position: Position { offset: 37, line: 1, column: 38 }
                             })),
                         ])
                     }
@@ -992,7 +1007,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: AdditionOperator::Add
+                                    operator: AdditionOperator::Add,
+                                    position: Position { offset: 22, line: 1, column: 23 }
                                 }
                             )),
                             Statement::Expression(Expression::AdditiveExpression(
@@ -1006,7 +1022,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: AdditionOperator::Subtract
+                                    operator: AdditionOperator::Subtract,
+                                    position: Position { offset: 31, line: 1, column: 32 }
                                 }
                             )),
                             Statement::Expression(Expression::MultiplicativeExpression(
@@ -1020,7 +1037,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: MultiplicationOperator::Multiplication
+                                    operator: MultiplicationOperator::Multiplication,
+                                    position: Position { offset: 40, line: 1, column: 41 }
                                 }
                             )),
                             Statement::Expression(Expression::MultiplicativeExpression(
@@ -1034,7 +1052,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: MultiplicationOperator::Division
+                                    operator: MultiplicationOperator::Division,
+                                    position: Position { offset: 49, line: 1, column: 50 }
                                 }
                             )),
                             Statement::Expression(Expression::OrExpression(OrExpression {
@@ -1047,6 +1066,7 @@ mod tests {
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(12))),
+                                position: Position { offset: 59, line: 1, column: 60 }
                             }))
                         ])
                     }
@@ -1076,7 +1096,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: AssignmentOperator::AddAssignment
+                                    operator: AssignmentOperator::AddAssignment,
+                                    position: Position { offset: 19, line: 1, column: 20 }
                                 }
                             )),
                             Statement::Expression(Expression::VariableExpression(
@@ -1144,7 +1165,8 @@ mod tests {
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(1))),
-                                operator: EqualOperator::NotEqual
+                                operator: EqualOperator::NotEqual,
+                                position: Position { offset: 26, line: 1, column: 27 }
                             })),
                             block: Box::new(Block {
                                 statements: VecDeque::from_iter([Statement::Expression(
@@ -1158,7 +1180,8 @@ mod tests {
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
-                                        operator: AdditionOperator::Add
+                                        operator: AdditionOperator::Add,
+                                        position: Position { offset: 40, line: 1, column: 41 }
                                     })
                                 )])
                             })
@@ -1201,7 +1224,8 @@ mod tests {
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
-                                        operator: AdditionOperator::Add
+                                        operator: AdditionOperator::Add,
+                                        position: Position { offset: 38, line: 1, column: 39 }
                                     })
                                 )])
                             })
@@ -1236,7 +1260,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
-                                    operator: EqualOperator::NotEqual
+                                    operator: EqualOperator::NotEqual,
+                                    position: Position { offset: 23, line: 1, column: 24 }
                                 }
                             ))),
                             else_block: None,
@@ -1252,7 +1277,8 @@ mod tests {
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
-                                        operator: AdditionOperator::Add
+                                        operator: AdditionOperator::Add,
+                                        position: Position { offset: 37, line: 1, column: 38 }
                                     })
                                 )])
                             })
@@ -1291,7 +1317,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
-                                    operator: EqualOperator::NotEqual
+                                    operator: EqualOperator::NotEqual,
+                                    position: Position { offset: 32, line: 2, column: 18 }
                                 }
                             ))),
                             else_block: Some(Box::new(If {
@@ -1309,7 +1336,8 @@ mod tests {
                                                 }
                                             )),
                                             right: Box::new(Expression::Number(Decimal::from(12))),
-                                            operator: AdditionOperator::Add
+                                            operator: AdditionOperator::Add,
+                                            position: Position { offset: 87, line: 4, column: 25 }
                                         })
                                     )])
                                 })
@@ -1326,7 +1354,8 @@ mod tests {
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
-                                        operator: AdditionOperator::Add
+                                        operator: AdditionOperator::Add,
+                                        position: Position { offset: 60, line: 3, column: 22 }
                                     })
                                 )])
                             })
@@ -1350,7 +1379,8 @@ mod tests {
                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
                                     })),
                             right: Box::new(Expression::Number(Decimal::from(1))),
-                            operator: EqualOperator::NotEqual
+                            operator: EqualOperator::NotEqual,
+                            position: Position { offset: 23, line: 1, column: 24 }
                         }))),
                         else_block: Some(Box::new(If{
                             condition: Some(Box::new(Expression::EqualExpression(EqualExpression{
@@ -1358,7 +1388,8 @@ mod tests {
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
                                         })),
                                 right: Box::new(Expression::Number(Decimal::from(1))),
-                                operator: EqualOperator::Equal
+                                operator: EqualOperator::Equal,
+                                position: Position { offset: 54, line: 1, column: 55 }
                             }))),
                             else_block: Some(Box::new(If{
                                 condition: None,
@@ -1370,7 +1401,8 @@ mod tests {
                                                 path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
                                             })),
                                             right: Box::new(Expression::Number(Decimal::from(11))),
-                                            operator: AdditionOperator::Add
+                                            operator: AdditionOperator::Add,
+                                            position: Position { offset: 86, line: 1, column: 87 }
                                         }))
                                 ])})
                             })),
@@ -1381,7 +1413,8 @@ mod tests {
                                             path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
                                         })),
                                         right: Box::new(Expression::Number(Decimal::from(13))),
-                                        operator: AdditionOperator::Add
+                                        operator: AdditionOperator::Add,
+                                        position: Position { offset: 68, line: 1, column: 69 }
                                     }))
                             ])})
                         })),
@@ -1392,7 +1425,8 @@ mod tests {
                                         path: VecDeque::from_iter([FunCallOrMember{ name: "xx".to_string(), arguments: None }]),
                                     })),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
-                                    operator: AdditionOperator::Add
+                                    operator: AdditionOperator::Add,
+                                    position: Position { offset: 37, line: 1, column: 38 }
                                 }))
                         ]) })
                     })
@@ -1422,7 +1456,8 @@ mod tests {
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
-                                    operator: EqualOperator::NotEqual
+                                    operator: EqualOperator::NotEqual,
+                                    position: Position { offset: 23, line: 1, column: 24 }
                                 }
                             ))),
                             else_block: None,
@@ -1441,7 +1476,8 @@ mod tests {
                                                     }
                                                 )),
                                                 right: Box::new(Expression::Number(Decimal::from(12))),
-                                                operator: AdditionOperator::Add
+                                                operator: AdditionOperator::Add,
+                                                position: Position { offset: 52, line: 1, column: 53 }
                                             })
                                         ), Statement::While(While {
                                             condition: Box::new(Expression::EqualExpression(EqualExpression {
@@ -1453,7 +1489,8 @@ mod tests {
                                                     }
                                                 )),
                                                 right: Box::new(Expression::Number(Decimal::from(40))),
-                                                operator: EqualOperator::NotEqual
+                                                operator: EqualOperator::NotEqual,
+                                                position: Position { offset: 64, line: 1, column: 65 }
                                             })),
                                             block: Box::new(Block {
                                                 statements: VecDeque::from_iter([Statement::Expression(
@@ -1466,7 +1503,8 @@ mod tests {
                                                                     }
                                                                 )),
                                                                 right: Box::new(Expression::Number(Decimal::from(12))),
-                                                                operator: AdditionOperator::Add })}
+                                                                operator: AdditionOperator::Add,
+                                                                position: Position { offset: 82, line: 1, column: 83 } })}
                                                         ])) }]),
                                                     })
                                                 ), Statement::If(If {
@@ -1522,29 +1560,37 @@ mod tests {
                                                                     right: Box::new(Expression::VariableExpression(VariableExpression{
                                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "y".to_string(), arguments: None }]),
                                                                          })),
-                                                                    operator: AdditionOperator::Add
+                                                                    operator: AdditionOperator::Add,
+                                                                    position: Position { offset: 26, line: 1, column: 27 }
                                                                 })),
-                                                                operator: MultiplicationOperator::Multiplication
+                                                                operator: MultiplicationOperator::Multiplication,
+                                                                position: Position { offset: 28, line: 1, column: 29 }
                                                             })),
                                                             right: Box::new(Expression::Number(Decimal::from(10))),
-                                                            operator: AdditionOperator::Subtract }
+                                                            operator: AdditionOperator::Subtract,
+                                                            position: Position { offset: 33, line: 1, column: 34 } }
                                                         )),
                                                         right: Box::new(Expression::Number(Decimal::from(5))),
-                                                        operator: RelationOperator::Grater
+                                                        operator: RelationOperator::Grater,
+                                                        position: Position { offset: 33, line: 1, column: 34 }
                                                     })),
                                                     right: Box::new(Expression::Number(Decimal::from(6))),
-                                                    operator: EqualOperator::NotEqual
+                                                    operator: EqualOperator::NotEqual,
+                                                    position: Position { offset: 38, line: 1, column: 39 }
                                                 })),
                                             right: Box::new(Expression::VariableExpression(VariableExpression{
                                                 path: VecDeque::from_iter([FunCallOrMember{ name: "yy".to_string(), arguments: None }]),
-                                                 })) ,}
+                                                 })) ,position: Position { offset: 50, line: 1, column: 51 }}
                                     )),
                                     right: Box::new(Expression::UnaryExpression(NotExpression{
                                         expression: Box::new(Expression::EqualExpression(EqualExpression{
                                             left: Box::new(Expression::Number(Decimal::from(4))),
                                             right: Box::new(Expression::Number(Decimal::from(5))),
-                                            operator: EqualOperator::Equal }))
+                                            operator: EqualOperator::Equal,
+                                            position: Position { offset: 57, line: 1, column: 58 } })),
+                                            position: Position { offset: 62, line: 1, column: 63 }
                                     })),
+                                    position: Position { offset: 62, line: 1, column: 63 }
                                 }
                             )),
                         ])

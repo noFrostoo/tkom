@@ -234,18 +234,21 @@ pub struct AssignmentExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: AssignmentOperator,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct OrExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct AndExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -253,6 +256,7 @@ pub struct EqualExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: EqualOperator,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -260,6 +264,7 @@ pub struct RelationalExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: RelationOperator,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -267,6 +272,7 @@ pub struct MultiplicativeExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: MultiplicationOperator,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -274,17 +280,20 @@ pub struct AdditiveExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: AdditionOperator,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct NotExpression {
     pub expression: Box<Expression>,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct HasExpression {
     pub expression: Box<Expression>,
     pub ident: String,
+    pub position: Position
 }
 
 #[derive(Clone, PartialEq, Debug)]

@@ -1,3 +1,5 @@
+use rust_decimal::Decimal;
+
 use crate::{types::*, executor::Value};
 use std::{io::Error, process::exit};
 
@@ -51,14 +53,18 @@ pub enum ErrorKind {
     },
     BlockExpected {},
     NoFunctions,
-    NoField {},
+    // NoField{ object: ObjectRef, field: String },
+    // CompareDifferentTypes{ left: Value, right:Value},
+    // NumberOverflow{number: Decimal},
+    NoField{},
     CompareDifferentTypes,
     NumberOverflow,
     NotAllowedOperation,
     ObjectExpected,
     UnknownFunction,
-    NotCallable,
+    // NotCallable{value: Value},
     IllegalAccess{on:Value, want:String},
+    NotCallable,
     UnexpectedExpression,
     AccessNone,
     NotFoundScope,
