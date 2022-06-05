@@ -4,10 +4,14 @@ use rust_decimal::Decimal;
 
 use crate::{executor::Value, types::*};
 
-//TODO: executor sam sobie przechowuje to 
 pub trait Visitor<T> {
     fn visit_program(&mut self, n: &Program) -> T;
-    fn visit_function_call(&mut self, name: String, arguments: VecDeque<Argument>, pos: Position) -> T;
+    fn visit_function_call(
+        &mut self,
+        name: String,
+        arguments: VecDeque<Argument>,
+        pos: Position,
+    ) -> T;
     fn visit_argument(&mut self, n: &Argument) -> T;
     fn visit_block(&mut self, n: &Block) -> T;
     fn visit_expr(&mut self, e: &Expression) -> T;

@@ -1,5 +1,5 @@
 use std::{
-    borrow::{BorrowMut, Borrow},
+    borrow::{Borrow, BorrowMut},
     cell::RefCell,
     collections::{HashMap, VecDeque},
     iter::zip,
@@ -66,23 +66,26 @@ impl Object {
             None => None,
         }
     }
-    
+
     pub fn entry(&mut self, name: &String, value: Value) {
         self.fields.insert(name.clone(), value);
     }
 
-
     pub fn add_field(&mut self, name: &String, value: Value) {
         match self.fields.get(name) {
-            Some(_) => {},
-            None => {self.fields.insert(name.clone(), value);},
+            Some(_) => {}
+            None => {
+                self.fields.insert(name.clone(), value);
+            }
         }
     }
-    
+
     pub fn update_field(&mut self, name: &String, value: Value) {
         match self.fields.get(name) {
-            Some(_) => {self.fields.insert(name.clone(), value);},
-            None => {},
+            Some(_) => {
+                self.fields.insert(name.clone(), value);
+            }
+            None => {}
         }
     }
 
@@ -135,7 +138,7 @@ pub struct FunCallContext {
     cur_return: Value,
     returnable: bool,
     stack_trace: VecDeque<Statement>,
-    call_pos: Position
+    call_pos: Position,
 }
 
 impl FunCallContext {
@@ -174,26 +177,6 @@ impl FunCallContext {
     }
 }
 
-/*
-Sem check:
-1.Check functions names
-2.
-
-Execution:
-1. visit program
-2. load functions, checks ?
-3. visit main function
-4. visit statements
-5. so expressions and so on so on
-
-TODO: ADD NONE
-
-!!! ADD NONE
-
-
-*/
-
-
 const MAIN_FUNC_NAME: &str = "main";
 
 pub struct Executor {
@@ -201,7 +184,7 @@ pub struct Executor {
     stack: VecDeque<FunCallContext>,
     standard_lib: HashMap<String, fn(&mut Executor, VecDeque<Argument>) -> Value>,
     last_ret: Value,
-    stack_trace_len: usize
+    stack_trace_len: usize,
 }
 
 impl Executor {
@@ -211,7 +194,7 @@ impl Executor {
             stack: VecDeque::new(),
             standard_lib: HashMap::new(),
             last_ret: Value::None,
-            stack_trace_len
+            stack_trace_len,
         };
         s.init_std_lib();
         s
@@ -221,14 +204,24 @@ impl Executor {
 impl Visitor<Value> for Executor {
     fn visit_program(&mut self, n: &Program) -> Value {
         self.functions = n.functions.clone();
-        let pos = n.functions.get(&MAIN_FUNC_NAME.to_string()).unwrap().position.clone();
+        let pos = n
+            .functions
+            .get(&MAIN_FUNC_NAME.to_string())
+            .unwrap()
+            .position
+            .clone();
         self.last_ret = self.visit_function_call(MAIN_FUNC_NAME.to_string(), VecDeque::new(), pos);
         return self.last_ret.clone();
     }
 
-    fn visit_function_call(&mut self, name: String, arguments: VecDeque<Argument>, pos: Position) -> Value {
+    fn visit_function_call(
+        &mut self,
+        name: String,
+        arguments: VecDeque<Argument>,
+        pos: Position,
+    ) -> Value {
         let value;
-        //todo std jako normalne 
+
         if let Some(func) = self.standard_lib.get(&name) {
             value = func(self, arguments);
         } else {
@@ -242,7 +235,7 @@ impl Visitor<Value> for Executor {
         self.visit_expr(&n.expr)
     }
 
-    fn visit_block(&mut self, n: &Block) -> Value{
+    fn visit_block(&mut self, n: &Block) -> Value {
         self.current_context().new_scope();
 
         for stmt in n.statements.to_owned() {
@@ -251,10 +244,18 @@ impl Visitor<Value> for Executor {
                 Statement::Expression(e) => {
                     self.visit_expr(&e);
                 }
-                Statement::If(i) => {self.visit_if(&i);},
-                Statement::For(f) => {self.visit_for(&f);},
-                Statement::While(w) => {self.visit_while(&w);},
-                Statement::Return(r) => {self.visit_return(&r);},
+                Statement::If(i) => {
+                    self.visit_if(&i);
+                }
+                Statement::For(f) => {
+                    self.visit_for(&f);
+                }
+                Statement::While(w) => {
+                    self.visit_while(&w);
+                }
+                Statement::Return(r) => {
+                    self.visit_return(&r);
+                }
             };
 
             if self.current_context().returnable {
@@ -299,7 +300,9 @@ impl Visitor<Value> for Executor {
             self.visit_block(&e.block);
         } else {
             match &e.else_block {
-                Some(e) => {self.visit_if(&e);},
+                Some(e) => {
+                    self.visit_if(&e);
+                }
                 None => {}
             }
         }
@@ -310,7 +313,6 @@ impl Visitor<Value> for Executor {
     fn visit_for(&mut self, e: &For) -> Value {
         let iterator = self.visit_expr(&e.object);
         if let Value::Object(o) = iterator {
-
             for elem in (*o).borrow().to_owned().fields {
                 self.current_context()
                     .scopes
@@ -324,7 +326,6 @@ impl Visitor<Value> for Executor {
                 }
             }
         } else if let Value::String(s) = iterator {
-            
             for ch in s.chars() {
                 self.current_context()
                     .scopes
@@ -338,7 +339,10 @@ impl Visitor<Value> for Executor {
                 }
             }
         } else {
-            self.error(ErrorKind::NotIterable{ value: iterator, pos: e.position.clone() });
+            self.error(ErrorKind::NotIterable {
+                value: iterator,
+                pos: e.position.clone(),
+            });
         }
 
         Value::None
@@ -363,7 +367,7 @@ impl Visitor<Value> for Executor {
                 self.current_context().cur_return = return_val.clone();
                 return_val
             }
-            None => Value::None
+            None => Value::None,
         }
     }
 
@@ -420,7 +424,11 @@ impl Visitor<Value> for Executor {
             }
         }
 
-        ErrorHandler::fatal(ErrorKind::CompareDifferentTypes{ left: values.0, right: values.1, pos: expr.position.clone() });
+        ErrorHandler::fatal(ErrorKind::CompareDifferentTypes {
+            left: values.0,
+            right: values.1,
+            pos: expr.position.clone(),
+        });
     }
 
     fn visit_additive_expression(&mut self, expr: &AdditiveExpression) -> Value {
@@ -428,16 +436,38 @@ impl Visitor<Value> for Executor {
         let copy = values.clone();
 
         if let (Value::Object(o1), Value::Object(o2)) = values {
-            return Value::Object(self.add_objects(o1, o2));
+            match expr.operator {
+                AdditionOperator::Add => return Value::Object(self.add_objects(o1, o2)),
+                AdditionOperator::Subtract => {
+                    self.error(ErrorKind::NotAllowedOperation {
+                        value: copy.0,
+                        other: copy.1,
+                        name: "-".to_string(),
+                        pos: expr.position.clone(),
+                    });
+                    return Value::None;
+                },
+            } 
+            
         } else if let (Value::Number(n1), Value::Number(n2)) = values {
             match expr.operator {
                 AdditionOperator::Add => match n1.checked_add(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow{ number: n1, other: n2, operation: "+".to_string(), pos: expr.position.clone() }),
+                    None => self.error(ErrorKind::NumberOverflow {
+                        number: n1,
+                        other: n2,
+                        operation: "+".to_string(),
+                        pos: expr.position.clone(),
+                    }),
                 },
                 AdditionOperator::Subtract => match n1.checked_sub(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "-".to_string(), pos: expr.position.clone()}),
+                    None => self.error(ErrorKind::NumberOverflow {
+                        number: n1,
+                        other: n2,
+                        operation: "-".to_string(),
+                        pos: expr.position.clone(),
+                    }),
                 },
             }
         } else if let (Value::String(s1), Value::String(s2)) = values {
@@ -448,11 +478,21 @@ impl Visitor<Value> for Executor {
                     let added = s + &other;
                     return Value::String(added);
                 }
-                AdditionOperator::Subtract => self.error(ErrorKind::NotAllowedOperation{ value: Value::String("".to_string()), other: Value::String("".to_string()), name: "subract".to_string(), pos: expr.position.clone() }),
+                AdditionOperator::Subtract => self.error(ErrorKind::NotAllowedOperation {
+                    value: Value::String("".to_string()),
+                    other: Value::String("".to_string()),
+                    name: "subtract".to_string(),
+                    pos: expr.position.clone(),
+                }),
             }
         }
 
-        self.error(ErrorKind::NotAllowedOperation{ value: copy.0, other: copy.1, name: "subtract".to_string(), pos: expr.position.clone() });
+        self.error(ErrorKind::NotAllowedOperation {
+            value: copy.0,
+            other: copy.1,
+            name: "subtract".to_string(),
+            pos: expr.position.clone(),
+        });
         Value::Number(Decimal::new(0, 0))
     }
 
@@ -463,20 +503,40 @@ impl Visitor<Value> for Executor {
             match expr.operator {
                 MultiplicationOperator::Multiplication => match n1.checked_mul(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "*".to_string(), pos: expr.position.clone()}),
+                    None => self.error(ErrorKind::NumberOverflow {
+                        number: n1,
+                        other: n2,
+                        operation: "*".to_string(),
+                        pos: expr.position.clone(),
+                    }),
                 },
                 MultiplicationOperator::Division => match n1.checked_div(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "/".to_string(), pos: expr.position.clone()}),
+                    None => self.error(ErrorKind::NumberOverflow {
+                        number: n1,
+                        other: n2,
+                        operation: "/".to_string(),
+                        pos: expr.position.clone(),
+                    }),
                 },
                 MultiplicationOperator::Modulo => match n1.checked_rem(n2) {
                     Some(d) => return Value::Number(d),
-                    None => self.error(ErrorKind::NumberOverflow{number: n1, other: n2, operation: "%".to_string(), pos: expr.position.clone()}),
+                    None => self.error(ErrorKind::NumberOverflow {
+                        number: n1,
+                        other: n2,
+                        operation: "%".to_string(),
+                        pos: expr.position.clone(),
+                    }),
                 },
             }
         }
 
-        self.error(ErrorKind::NotAllowedOperation{ value: values.0, other: values.1, name: "subract".to_string(), pos: expr.position.clone() });
+        self.error(ErrorKind::NotAllowedOperation {
+            value: values.0,
+            other: values.1,
+            name: "subtract".to_string(),
+            pos: expr.position.clone(),
+        });
         Value::None
     }
 
@@ -484,9 +544,7 @@ impl Visitor<Value> for Executor {
         let left = self.visit_expr(&expr.expression);
 
         match left {
-            Value::Object(_) => {
-                Value::Bool(true)
-            }
+            Value::Object(_) => Value::Bool(true),
             Value::Number(n) => {
                 if n.eq(&Decimal::new(0, 0)) {
                     return Value::Bool(true);
@@ -505,7 +563,12 @@ impl Visitor<Value> for Executor {
                 return Value::Bool(!b);
             }
             Value::Function(_) => {
-                self.error(ErrorKind::NotAllowedOperation{ value: left, other: Value::None, name: "not".to_string(), pos: expr.position.clone() });
+                self.error(ErrorKind::NotAllowedOperation {
+                    value: left,
+                    other: Value::None,
+                    name: "not".to_string(),
+                    pos: expr.position.clone(),
+                });
                 Value::Bool(true)
             }
             Value::None => {
@@ -519,7 +582,10 @@ impl Visitor<Value> for Executor {
         if let Value::Object(o) = obj {
             return Value::Bool((*o).borrow_mut().has(expr.ident.clone()));
         } else {
-            self.error(ErrorKind::ObjectExpected{ what: "has".to_string(), pos: expr.position.clone() });
+            self.error(ErrorKind::ObjectExpected {
+                what: "has".to_string(),
+                pos: expr.position.clone(),
+            });
             Value::Bool(false)
         }
     }
@@ -532,33 +598,64 @@ impl Visitor<Value> for Executor {
                     Value::Object(o) => {
                         if let Some(rc) = (*o).borrow().access_field(&elem.name) {
                             if let Value::Function(f) = rc {
-                                val = self.user_function_call(f.clone(), arguments, expr.position.clone());
+                                val = self.user_function_call(
+                                    f.clone(),
+                                    arguments,
+                                    expr.position.clone(),
+                                );
                             } else {
-                                self.error(ErrorKind::NotCallable{ value: val.clone(), pos: expr.position.clone() });
+                                self.error(ErrorKind::NotCallable {
+                                    value: val.clone(),
+                                    pos: expr.position.clone(),
+                                });
                             }
                         } else {
-                            self.error(ErrorKind::NoField{ object: Rc::clone(&o), field: elem.name.clone(), pos: expr.position.clone() })
+                            self.error(ErrorKind::NoField {
+                                object: Rc::clone(&o),
+                                field: elem.name.clone(),
+                                pos: expr.position.clone(),
+                            })
                         }
                     }
                     Value::None => {
-                        val = self.visit_function_call(elem.name.clone(), arguments, expr.position.clone());
+                        val = self.visit_function_call(
+                            elem.name.clone(),
+                            arguments,
+                            expr.position.clone(),
+                        );
                     }
-                    _ => {self.error(ErrorKind::IllegalAccess { on: val.clone(), want: elem.name.clone() })}
+                    _ => self.error(ErrorKind::IllegalAccess {
+                        on: val.clone(),
+                        want: elem.name.clone(),
+                    }),
                 }
             } else {
                 match val.clone() {
                     Value::Object(o) => match (*o).borrow().access_field(&elem.name) {
                         Some(v) => val = v,
-                        None => self.error(ErrorKind::NoField{ object: o.clone(), field: elem.name.clone(), pos: expr.position.clone() }),
+                        None => self.error(ErrorKind::NoField {
+                            object: o.clone(),
+                            field: elem.name.clone(),
+                            pos: expr.position.clone(),
+                        }),
                     },
                     Value::None => {
                         if let Some(v) = self.find_value(&elem.name) {
                             val = v;
                         } else {
-                            self.error(ErrorKind::NotDefined{ name: elem.name.clone(), pos: expr.position.clone() });
+                            self.error(ErrorKind::NotDefined {
+                                name: elem.name.clone(),
+                                pos: expr.position.clone(),
+                            });
                         }
-                    },
-                    _ => {self.error(ErrorKind::IllegalAccess { on: val, want: elem.name.clone() }); return Value::None}
+                    }
+                    _ => {
+                        self.error(ErrorKind::IllegalAccess {
+                            on: val,
+                            want: elem.name.clone(),
+                        });
+                        return Value::None;
+                    }
                 }
             }
         }
@@ -569,9 +666,8 @@ impl Visitor<Value> for Executor {
     fn visit_assignment_expression(&mut self, expr: &AssignmentExpression) -> Value {
         let mut left;
         let right = self.visit_expr(&expr.right);
-        //TODO: flaga
         if let Expression::VariableExpression(mut e) = *expr.left.to_owned() {
-            let name = e.path[0].name.clone(); 
+            let name = e.path[0].name.clone();
             if e.path.len() == 1 {
                 match self.find_value(&name) {
                     Some(val) => {
@@ -582,33 +678,60 @@ impl Visitor<Value> for Executor {
                                 left = right;
                             }
                             AssignmentOperator::AddAssignment => {
-                                left = self.add_assignment(&name, &left, &right, expr.position.clone());
+                                left = self.add_assignment(
+                                    &name,
+                                    &left,
+                                    &right,
+                                    expr.position.clone(),
+                                );
                             }
                             AssignmentOperator::SubtractAssignment => {
-                                left = self.subtract_assignment(&name, &left, &right, expr.position.clone());
+                                left = self.subtract_assignment(
+                                    &name,
+                                    &left,
+                                    &right,
+                                    expr.position.clone(),
+                                );
                             }
                             AssignmentOperator::MultiplicationAssignment => {
-                                left = self.mul_assignment(&name, &left, &right, expr.position.clone());
+                                left = self.mul_assignment(
+                                    &name,
+                                    &left,
+                                    &right,
+                                    expr.position.clone(),
+                                );
                             }
                             AssignmentOperator::DivisionAssignment => {
-                                left = self.div_assignment(&name, &left, &right, expr.position.clone());
+                                left = self.div_assignment(
+                                    &name,
+                                    &left,
+                                    &right,
+                                    expr.position.clone(),
+                                );
                             }
                             AssignmentOperator::ModuloAssignment => {
-                                left = self.modulo_assignment(&name, &left, &right, expr.position.clone());
+                                left = self.modulo_assignment(
+                                    &name,
+                                    &left,
+                                    &right,
+                                    expr.position.clone(),
+                                );
                             }
                         }
                     }
                     None => {
                         if let AssignmentOperator::Assignment = expr.operator {
-                                self
-                                .current_context()
+                            self.current_context()
                                 .scopes
                                 .back_mut()
                                 .unwrap()
                                 .insert_var(&name, right.clone());
-                                return right;
+                            return right;
                         } else {
-                            self.error(ErrorKind::NotDefined{ name: name.clone(), pos: expr.position.clone() });
+                            self.error(ErrorKind::NotDefined {
+                                name: name.clone(),
+                                pos: expr.position.clone(),
+                            });
                             return Value::None;
                         };
                     }
@@ -617,7 +740,9 @@ impl Visitor<Value> for Executor {
                 //len can be > 2, can do this safely
                 let last = e.path.remove(e.path.len() - 1).unwrap();
                 if let Some(_) = last.arguments {
-                    self.error(ErrorKind::BadAssign{ pos: expr.position.clone() });
+                    self.error(ErrorKind::BadAssign {
+                        pos: expr.position.clone(),
+                    });
                     return Value::None;
                 }
 
@@ -628,12 +753,25 @@ impl Visitor<Value> for Executor {
                             (*o).borrow_mut().entry(&last.name, right);
                         }
                         AssignmentOperator::AddAssignment => {
-                            self.add_assignment_object(&last.name, o, &right, expr.position.clone());
+                            self.add_assignment_object(
+                                &last.name,
+                                o,
+                                &right,
+                                expr.position.clone(),
+                            );
                         }
-                        _ => {self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right, name: "%=".to_string(), pos:expr.position.clone() })}
+                        _ => self.error(ErrorKind::NotAllowedOperation {
+                            value: left.clone(),
+                            other: right,
+                            name: "%=".to_string(),
+                            pos: expr.position.clone(),
+                        }),
                     }
                 } else {
-                    self.error(ErrorKind::NotAssignable{ name, pos: expr.position.clone() });
+                    self.error(ErrorKind::NotAssignable {
+                        name,
+                        pos: expr.position.clone(),
+                    });
                     return Value::None;
                 }
             }
@@ -652,21 +790,20 @@ impl Visitor<Value> for Executor {
     fn visit_number_expression(&mut self, e: &Decimal) -> Value {
         Value::Number(*e)
     }
-
 }
 
 impl Executor {
     fn find_value(&mut self, name: &String) -> Option<Value> {
         if let Some(_) = self.functions.get(name) {
-            return Some(Value::Function(name.clone()))
+            return Some(Value::Function(name.clone()));
         }
 
         if let Some(_) = self.standard_lib.get(name) {
-            return Some(Value::Function(name.clone()))
+            return Some(Value::Function(name.clone()));
         }
 
         if let Some(v) = self.current_context().find_var_in_scopes(name) {
-            return Some(v.to_owned())
+            return Some(v.to_owned());
         }
 
         None
@@ -674,11 +811,17 @@ impl Executor {
 
     fn update_value(&mut self, name: &String, value: Value) {
         if let Some(_) = self.functions.get(name) {
-            return self.error(ErrorKind::NotUpdatable { name: name.clone(), value: value })
+            return self.error(ErrorKind::NotUpdatable {
+                name: name.clone(),
+                value: value,
+            });
         }
 
         if let Some(_) = self.standard_lib.get(name) {
-            return self.error(ErrorKind::NotUpdatable { name: name.clone(), value: value })
+            return self.error(ErrorKind::NotUpdatable {
+                name: name.clone(),
+                value: value,
+            });
         }
 
         self.current_context().update_var_in_scopes(name, value)
@@ -686,7 +829,7 @@ impl Executor {
 
     fn evaluate_condition(&mut self, e: &Expression) -> bool {
         let expr = self.visit_expr(e);
-        self.value_to_bool(&expr) 
+        self.value_to_bool(&expr)
     }
 
     fn logical_cond(&mut self, left_expr: &Expression, right_expr: &Expression) -> (bool, bool) {
@@ -712,7 +855,13 @@ impl Executor {
         }
     }
 
-    fn add_assignment_object(&mut self, name: &String, left: ObjectRef, right: &Value, pos: Position) {
+    fn add_assignment_object(
+        &mut self,
+        name: &String,
+        left: ObjectRef,
+        right: &Value,
+        pos: Position,
+    ) {
         let mut obj = (*left).borrow_mut();
         match obj.access_field(name) {
             Some(v) => match v {
@@ -720,17 +869,30 @@ impl Executor {
                     if let Value::Object(o2) = right {
                         obj.add_field(name, Value::Object(self.add_objects(o1, Rc::clone(o2))));
                     } else {
-                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::Object(Rc::new(RefCell::new(Object::new()))), pos })
+                        self.error(ErrorKind::BadType {
+                            value: right.clone(),
+                            expected: Value::Object(Rc::new(RefCell::new(Object::new()))),
+                            pos,
+                        })
                     }
                 }
                 Value::Number(n1) => {
                     if let Value::Number(n2) = right {
                         match n1.checked_add(*n2) {
                             Some(n) => obj.add_field(name, Value::Number(n)),
-                            None => self.error(ErrorKind::NumberOverflow{number: n1, other: *n2, operation: "+=".to_string(), pos:pos}),
+                            None => self.error(ErrorKind::NumberOverflow {
+                                number: n1,
+                                other: *n2,
+                                operation: "+=".to_string(),
+                                pos: pos,
+                            }),
                         }
                     } else {
-                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::Number(Decimal::new(0, 0)), pos })
+                        self.error(ErrorKind::BadType {
+                            value: right.clone(),
+                            expected: Value::Number(Decimal::new(0, 0)),
+                            pos,
+                        })
                     }
                 }
                 Value::String(s1) => {
@@ -740,21 +902,39 @@ impl Executor {
                         let added = s + &other;
                         obj.add_field(name, Value::String(added));
                     } else {
-                        self.error(ErrorKind::BadType{ value: right.clone(), expected: Value::String("_".to_string()), pos })
+                        self.error(ErrorKind::BadType {
+                            value: right.clone(),
+                            expected: Value::String("_".to_string()),
+                            pos,
+                        })
                     }
                 }
-                _ => {self.error(ErrorKind::BadType{ value: Value::Object(left.clone()), expected: Value::Object(Rc::new(RefCell::new(Object::new()))), pos })}
+                _ => self.error(ErrorKind::BadType {
+                    value: Value::Object(left.clone()),
+                    expected: Value::Object(Rc::new(RefCell::new(Object::new()))),
+                    pos,
+                }),
             },
-            None => {self.error(ErrorKind::NoField{ object: Rc::clone(&left), field: name.clone(), pos  })},
+            None => self.error(ErrorKind::NoField {
+                object: Rc::clone(&left),
+                field: name.clone(),
+                pos,
+            }),
         }
     }
 
-    fn add_assignment(&mut self, name: &String, left: &Value, right: &Value, pos: Position) -> Value {
+    fn add_assignment(
+        &mut self,
+        name: &String,
+        left: &Value,
+        right: &Value,
+        pos: Position,
+    ) -> Value {
         let values = (left, right);
 
         if let (Value::Object(o1), Value::Object(o2)) = values {
             let added = self.add_objects(Rc::clone(o1), Rc::clone(o2));
-            println!("{}",(*added).borrow().to_string());
+            println!("{}", (*added).borrow().to_string());
             self.update_value(name, Value::Object(added.clone()));
             return Value::Object(added);
         }
@@ -770,69 +950,158 @@ impl Executor {
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_add(*n2) {
                 Some(n) => {
-                    self.update_value(name, Value::Number(n)); 
+                    self.update_value(name, Value::Number(n));
                     return Value::Number(n);
-                },
-                None => {self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "+=".to_string(), pos: pos}); return Value::None},
+                }
+                None => {
+                    self.error(ErrorKind::NumberOverflow {
+                        number: *n1,
+                        other: *n2,
+                        operation: "+=".to_string(),
+                        pos: pos,
+                    });
+                    return Value::None;
+                }
             }
         }
 
-        self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+        self.error(ErrorKind::NotAllowedOperation {
+            value: left.clone(),
+            other: right.clone(),
+            name: "%=".to_string(),
+            pos,
+        });
         Value::None
     }
 
-    fn subtract_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value{
+    fn subtract_assignment(
+        &mut self,
+        name: &String,
+        left: &Value,
+        right: &Value,
+        pos: Position,
+    ) -> Value {
         let values = (left, right);
 
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_sub(*n2) {
-                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
-                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "-=".to_string(), pos: pos}),
+                Some(n) => {
+                    self.update_value(name, Value::Number(n));
+                    return Value::Number(n);
+                }
+                None => self.error(ErrorKind::NumberOverflow {
+                    number: *n1,
+                    other: *n2,
+                    operation: "-=".to_string(),
+                    pos: pos,
+                }),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+            self.error(ErrorKind::NotAllowedOperation {
+                value: left.clone(),
+                other: right.clone(),
+                name: "%=".to_string(),
+                pos,
+            });
         }
 
         Value::None
     }
 
-    fn mul_assignment(&mut self, name: &String, left: &Value, right: &Value, pos: Position) -> Value{
+    fn mul_assignment(
+        &mut self,
+        name: &String,
+        left: &Value,
+        right: &Value,
+        pos: Position,
+    ) -> Value {
         let values = (left, right);
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_mul(*n2) {
-                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
-                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "*=".to_string(), pos: pos}),
+                Some(n) => {
+                    self.update_value(name, Value::Number(n));
+                    return Value::Number(n);
+                }
+                None => self.error(ErrorKind::NumberOverflow {
+                    number: *n1,
+                    other: *n2,
+                    operation: "*=".to_string(),
+                    pos: pos,
+                }),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+            self.error(ErrorKind::NotAllowedOperation {
+                value: left.clone(),
+                other: right.clone(),
+                name: "%=".to_string(),
+                pos,
+            });
         }
 
         Value::None
     }
 
-    fn div_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value {
+    fn div_assignment(
+        &mut self,
+        name: &String,
+        left: &Value,
+        right: &Value,
+        pos: Position,
+    ) -> Value {
         let values = (left, right);
         if let (Value::Number(n1), Value::Number(n2)) = values {
             match n1.checked_div(*n2) {
-                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
-                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: *n2, operation: "/=".to_string(), pos: pos}),
+                Some(n) => {
+                    self.update_value(name, Value::Number(n));
+                    return Value::Number(n);
+                }
+                None => self.error(ErrorKind::NumberOverflow {
+                    number: *n1,
+                    other: *n2,
+                    operation: "/=".to_string(),
+                    pos: pos,
+                }),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+            self.error(ErrorKind::NotAllowedOperation {
+                value: left.clone(),
+                other: right.clone(),
+                name: "%=".to_string(),
+                pos,
+            });
         }
 
         Value::None
     }
 
-    fn modulo_assignment(&mut self, name: &String, left: &Value, right: &Value, pos:Position) -> Value{
+    fn modulo_assignment(
+        &mut self,
+        name: &String,
+        left: &Value,
+        right: &Value,
+        pos: Position,
+    ) -> Value {
         let values = (left, right);
-        if let (Value::Number(n1), Value::Number(mut n2)) = values {
-            match n1.checked_rem(n2) {
-                Some(n) => {self.update_value(name, Value::Number(n)); return Value::Number(n)},
-                None => self.error(ErrorKind::NumberOverflow{number: *n1, other: n2, operation: "%=".to_string(), pos: pos}),
+        if let (Value::Number(n1), Value::Number(n2)) = values {
+            match n1.checked_rem(*n2) {
+                Some(n) => {
+                    self.update_value(name, Value::Number(n));
+                    return Value::Number(n);
+                }
+                None => self.error(ErrorKind::NumberOverflow {
+                    number: *n1,
+                    other: *n2,
+                    operation: "%=".to_string(),
+                    pos: pos,
+                }),
             }
         } else {
-            self.error(ErrorKind::NotAllowedOperation{ value: left.clone(), other: right.clone(), name: "%=".to_string(), pos });
+            self.error(ErrorKind::NotAllowedOperation {
+                value: left.clone(),
+                other: right.clone(),
+                name: "%=".to_string(),
+                pos,
+            });
         }
 
         Value::None
@@ -875,11 +1144,16 @@ impl Executor {
         }
     }
 
-    fn user_function_call(&mut self, name: String, arguments: VecDeque<Argument>, pos: Position) -> Value {
+    fn user_function_call(
+        &mut self,
+        name: String,
+        arguments: VecDeque<Argument>,
+        pos: Position,
+    ) -> Value {
         let func = match self.functions.get(&name) {
             Some(f) => f.clone(),
             None => {
-                self.error(ErrorKind::UnknownFunction{ name, pos });
+                self.error(ErrorKind::UnknownFunction { name, pos });
                 return Value::None;
             }
         };
@@ -898,9 +1172,9 @@ impl Executor {
             cur_return: Value::None,
             returnable: false,
             stack_trace: VecDeque::new(),
-            call_pos: pos
+            call_pos: pos,
         };
-        
+
         let mut base_scope: Scope = Scope::new();
 
         for (par, arg) in zip(func.parameters, arguments) {
@@ -1008,7 +1282,12 @@ impl Executor {
 
         match Decimal::from_str(&*value.to_string()) {
             Ok(d) => Value::Number(d),
-            Err(_) => {self.error(ErrorKind::BadConvert{number: value.to_string()}); Value::Number(Decimal::new(0,0))},
+            Err(_) => {
+                self.error(ErrorKind::BadConvert {
+                    number: value.to_string(),
+                });
+                Value::Number(Decimal::new(0, 0))
+            }
         }
     }
 
@@ -1025,29 +1304,6 @@ impl Executor {
         exit(-99);
     }
 
-    fn delete(&mut self, arguments: VecDeque<Argument>) -> Value {
-        if 1 != arguments.len() {
-            self.error(ErrorKind::MismatchedArgumentsLen {
-                expected: 1,
-                got: arguments.len(),
-                function: "Numeric".to_string(),
-            });
-            return Value::None;
-        }
-
-        let value = self.visit_argument(&arguments[0]);
-
-        match value {
-            Value::Object(_) => todo!(),
-            Value::Number(_) => todo!(),
-            Value::String(_) => todo!(),
-            Value::Bool(_) => todo!(),
-            Value::Function(_) => todo!(),
-            Value::None => todo!(),
-        }
-
-        Value::None
-    }
 }
 
 mod test {
@@ -1167,9 +1423,10 @@ mod test {
     );
     executor_test!(
         object_test4,
-    "main(){ x = Object(); x.val = 1; y = x.val + 1; return y;  }",
-    Value::Number(Decimal::new(2, 0))
+        "main(){ x = Object(); x.val = 1; y = x.val + 1; return y;  }",
+        Value::Number(Decimal::new(2, 0))
     );
+
     executor_test!(
         logical_test1,
         "main(){ x = 1 < 2; return x; }",
@@ -1243,27 +1500,27 @@ mod test {
     executor_test!(
         add_assignment_test,
         "main(){ x = 0; x += 1; return x; }",
-        Value::Number(Decimal::new(1,0))
+        Value::Number(Decimal::new(1, 0))
     );
     executor_test!(
         add_assignment_test2,
         "main(){ x = 0; x += -1; return x; }",
-        Value::Number(Decimal::new(-1,0))
+        Value::Number(Decimal::new(-1, 0))
     );
     executor_test!(
         sub_assignment_test1,
         "main(){ x = 0; x -= 1; return x; }",
-        Value::Number(Decimal::new(-1,0))
+        Value::Number(Decimal::new(-1, 0))
     );
     executor_test!(
         mul_assignment_test1,
         "main(){ x = 2; x *= 2; return x; }",
-        Value::Number(Decimal::new(4,0))
+        Value::Number(Decimal::new(4, 0))
     );
     executor_test!(
         div_assignment_test1,
         "main(){ x = 2; x /= 2; return x; }",
-        Value::Number(Decimal::new(1,0))
+        Value::Number(Decimal::new(1, 0))
     );
     executor_test!(
         FAIL: div_assignment_test2,
@@ -1272,46 +1529,46 @@ mod test {
     executor_test!(
         modulo_assignment_test1,
         "main(){ x = 4; x %= 2; return x; }",
-        Value::Number(Decimal::new(0,0))
+        Value::Number(Decimal::new(0, 0))
     );
     executor_test!(
         modulo_assignment_test2,
         "main(){ x = 5; x %= 2; return x; }",
-        Value::Number(Decimal::new(1,0))
+        Value::Number(Decimal::new(1, 0))
     );
     executor_test!(
         add_test,
         "main(){ x = 2 + 2; return x; }",
-        Value::Number(Decimal::new(4,0))
+        Value::Number(Decimal::new(4, 0))
     );
     executor_test!(
         sub_test,
         "main(){ x = 2 - 2; return x; }",
-        Value::Number(Decimal::new(0,0))
+        Value::Number(Decimal::new(0, 0))
     );
     executor_test!(
         mul_test,
         "main(){ x = 2 * 2; return x; }",
-        Value::Number(Decimal::new(4,0))
+        Value::Number(Decimal::new(4, 0))
     );
     executor_test!(
         div_test,
         "main(){ x = 2 / 2; return x; }",
-        Value::Number(Decimal::new(1,0))
+        Value::Number(Decimal::new(1, 0))
     );
     executor_test!(
         mod_test,
         "main(){ x = 4 % 2; return x; }",
-        Value::Number(Decimal::new(0,0))
+        Value::Number(Decimal::new(0, 0))
     );
     executor_test!(
         mod_test2,
         "main(){ x = 5 % 2; return x; }",
-        Value::Number(Decimal::new(1,0))
+        Value::Number(Decimal::new(1, 0))
     );
     executor_test!(
         for_test,
-    "main(){
+        "main(){
         x = Object(); 
         x.val = 1; 
         x.val2 = 1;
@@ -1322,11 +1579,11 @@ mod test {
         }
         return y;  
     }",
-    Value::Number(Decimal::new(3, 0))
+        Value::Number(Decimal::new(3, 0))
     );
     executor_test!(
         for_test2,
-    "main(){
+        "main(){
         x = \"aaaa\";
         y = \"a\";
         z = 0;
@@ -1334,11 +1591,12 @@ mod test {
             y += f;
         }
         return y;  
-    }", Value::String("aaaaa".to_string())
+    }",
+        Value::String("aaaaa".to_string())
     );
     executor_test!(
         FAIL: for_test_fail,
-    "main(){
+        "main(){
         x = 0;
         y = 0;
         for f in 0 {
@@ -1424,18 +1682,18 @@ mod test {
     );
     executor_test!(
         while_test,
-    "main(){
+        "main(){
         i = 0;
         while (i < 10) {
             i += 1;
         }
         return i;  
     }",
-    Value::Number(Decimal::new(10, 0))
+        Value::Number(Decimal::new(10, 0))
     );
     executor_test!(
         FAIL: while_test_scope,
-    "main(){
+        "main(){
         i = 0;
         while (i < 10) {
             i += 1;
@@ -1444,7 +1702,8 @@ mod test {
         return t;  
     }"
     );
-    executor_test!(function_test2,
+    executor_test!(
+        function_test2,
         "
     xxx(o) {
         o.other = \"xdd\";
@@ -1463,11 +1722,14 @@ mod test {
         return y; 
     }",
         Value::Object(Rc::new(RefCell::new(Object {
-            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(3, 0))),
-            ("other".to_string(), Value::String("xdd".to_string()))])
+            fields: HashMap::from([
+                ("val".to_string(), Value::Number(Decimal::new(3, 0))),
+                ("other".to_string(), Value::String("xdd".to_string()))
+            ])
         })))
     );
-    executor_test!(factorial,
+    executor_test!(
+        factorial,
         "
     factorial(n) {  
         if(n == 0) {
@@ -1481,7 +1743,7 @@ mod test {
         y = factorial(5);
         return y; 
     }",
-    Value::Number(Decimal::new(120, 0))
+        Value::Number(Decimal::new(120, 0))
     );
 
     executor_test!(
@@ -1497,7 +1759,7 @@ mod test {
         })))
     );
     executor_test!(
-        has_test2, // do not have 
+        has_test2, // do not have
         "main(){ x = Object();  
             x.val = 1; 
             if (x has val2) {
@@ -1525,17 +1787,11 @@ mod test {
         "doStuff(a, b ) {} 
     main(){ y = doStuff(1);  return y; }"
     );
-    executor_test!(
-        FAIL: not_defined,
-    "main(){ x + 1;  return y; }"
-    );
-    executor_test!(
-        FAIL: not_callable,
-    "main(){ x = 1; x();  return x; }"
-    );
+    executor_test!(FAIL: not_defined, "main(){ x + 1;  return y; }");
+    executor_test!(FAIL: not_callable, "main(){ x = 1; x();  return x; }");
     executor_test!(
         FAIL: no_field,
-    "main(){ x = Object(); y = x.val + 1; return y;  }"
+        "main(){ x = Object(); y = x.val + 1; return y;  }"
     );
     executor_test!(
         FAIL: func_ptr_fail1,
@@ -1591,9 +1847,12 @@ mod test {
             l = Object();
             l.val2 = 2;
             return x + l; 
-        }",  Value::Object(Rc::new(RefCell::new(Object {
-            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0))),
-            ("val2".to_string(), Value::Number(Decimal::new(2, 0)))])
+        }",
+        Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([
+                ("val".to_string(), Value::Number(Decimal::new(1, 0))),
+                ("val2".to_string(), Value::Number(Decimal::new(2, 0)))
+            ])
         })))
     );
     executor_test!(
@@ -1604,9 +1863,12 @@ mod test {
             l = Object();
             l.val2 = 2;
             return x += l; 
-        }",  Value::Object(Rc::new(RefCell::new(Object {
-            fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0))),
-            ("val2".to_string(), Value::Number(Decimal::new(2, 0)))])
+        }",
+        Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([
+                ("val".to_string(), Value::Number(Decimal::new(1, 0))),
+                ("val2".to_string(), Value::Number(Decimal::new(2, 0)))
+            ])
         })))
     );
     executor_test!(
@@ -1617,7 +1879,8 @@ mod test {
             l = Object();
             l.val = 2;
             return x += l; 
-        }",  Value::Object(Rc::new(RefCell::new(Object {
+        }",
+        Value::Object(Rc::new(RefCell::new(Object {
             fields: HashMap::from([("val".to_string(), Value::Number(Decimal::new(1, 0)))])
         })))
     );
@@ -1625,5 +1888,46 @@ mod test {
         FAIL: types_operations7,
         "main(){ x = Print; l = \"4\"; return x + l; }"
     );
-
+    executor_test!(
+        types_operations12,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val2 = 2;
+            return x == l; 
+        }",
+        Value::Bool(false)
+    );
+    executor_test!(
+        types_operations13,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val = 1;
+            return x == l; 
+        }",
+        Value::Bool(false)
+    );
+    executor_test!(
+        FAIL: types_operations14,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val = 1;
+            return x - l; 
+        }"
+    );
+    executor_test!(
+        FAIL: types_operations15,
+        "main(){ 
+            x = Object(); 
+            x.val = 1;
+            l = Object();
+            l.val = 1;
+            return x * l; 
+        }"
+    );
 }

@@ -187,7 +187,7 @@ pub struct Function {
     pub name: String, //not optimized
     pub parameters: VecDeque<Parameter>,
     pub block: Block,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -235,21 +235,21 @@ pub struct AssignmentExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: AssignmentOperator,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct OrExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct AndExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -257,7 +257,7 @@ pub struct EqualExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: EqualOperator,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -265,7 +265,7 @@ pub struct RelationalExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: RelationOperator,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -273,7 +273,7 @@ pub struct MultiplicativeExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: MultiplicationOperator,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -281,20 +281,20 @@ pub struct AdditiveExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub operator: AdditionOperator,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct NotExpression {
     pub expression: Box<Expression>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct HasExpression {
     pub expression: Box<Expression>,
     pub ident: String,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -324,7 +324,7 @@ pub struct If {
     pub condition: Option<Box<Expression>>,
     pub block: Box<Block>,
     pub else_block: Option<Box<If>>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -332,20 +332,20 @@ pub struct For {
     pub iterator: String,
     pub object: Box<Expression>,
     pub block: Box<Block>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct While {
     pub condition: Box<Expression>,
     pub block: Box<Block>,
-    pub position: Position
+    pub position: Position,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Return {
     pub expression: Option<Box<Expression>>,
-    pub position: Position
+    pub position: Position,
 }
 
 pub const NOT_OPERATOR: TokenKind = TokenKind::Not;

@@ -1,6 +1,7 @@
 use std::{
+    borrow::Borrow,
     collections::{HashMap, VecDeque},
-    rc::Rc, borrow::Borrow,
+    rc::Rc,
 };
 
 use rust_decimal::Decimal;
@@ -53,7 +54,7 @@ impl Parser {
             TokenKind::Identifier(n) => name = n,
             _ => return None,
         }
-        
+
         let pos = self.lexer.get_position();
         self.next_token();
 
@@ -89,7 +90,7 @@ impl Parser {
             name: name.clone(),
             parameters: parameters,
             block: block,
-            position: pos
+            position: pos,
         })
     }
 
@@ -248,7 +249,7 @@ impl Parser {
         Some(While {
             condition: Box::new(cond),
             block: Box::new(block),
-            position: pos
+            position: pos,
         })
     }
 
@@ -302,7 +303,7 @@ impl Parser {
             iterator: ident_iterator,
             object: Box::new(object),
             block: Box::new(block),
-            position: pos
+            position: pos,
         })
     }
 
@@ -349,7 +350,6 @@ impl Parser {
             None => ErrorHandler::fatal(ErrorKind::BlockExpected {}),
         }
 
-        //TODO; przerób na iteracje
         let else_block: Option<Box<If>>;
         if let TokenKind::Else = self.lexer.get_current_token().kind {
             self.next_token();
@@ -367,7 +367,7 @@ impl Parser {
                         condition: None,
                         block: Box::new(block),
                         else_block: None,
-                        position: pos
+                        position: pos,
                     }))
                 }
             }
@@ -379,7 +379,7 @@ impl Parser {
             condition: Some(Box::new(cond)),
             block: Box::new(block),
             else_block: else_block,
-            position: pos
+            position: pos,
         })
     }
 
@@ -395,9 +395,12 @@ impl Parser {
         match self.try_parse_expression() {
             Some(expr) => Some(Return {
                 expression: Some(Box::new(expr)),
-                position: pos
+                position: pos,
             }),
-            None => Some(Return { expression: None, position: pos }),
+            None => Some(Return {
+                expression: None,
+                position: pos,
+            }),
         }
     }
 
@@ -412,7 +415,7 @@ impl Parser {
                     left = Expression::OrExpression(OrExpression {
                         left: Box::new(left),
                         right: Box::new(right),
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -437,7 +440,7 @@ impl Parser {
                     left = Expression::AndExpression(AndExpression {
                         left: Box::new(left),
                         right: Box::new(right),
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -462,7 +465,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -486,7 +489,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -510,7 +513,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -534,7 +537,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -560,7 +563,7 @@ impl Parser {
             let pos = self.lexer.get_position();
             return Some(Expression::UnaryExpression(NotExpression {
                 expression: Box::new(expression),
-                position: pos
+                position: pos,
             }));
         }
 
@@ -599,7 +602,7 @@ impl Parser {
                 expression = Expression::HasExpression(HasExpression {
                     expression: Box::new(expression),
                     ident: ident,
-                    position: pos
+                    position: pos,
                 });
             }
         }
@@ -651,7 +654,7 @@ impl Parser {
                         left: Box::new(left),
                         right: Box::new(right),
                         operator: operator,
-                        position: pos
+                        position: pos,
                     })
                 }
                 None => ErrorHandler::fatal(ErrorKind::IncompleteExpression {
@@ -690,7 +693,7 @@ impl Parser {
 
         return Some(Expression::VariableExpression(VariableExpression {
             path: path,
-            position: pos
+            position: pos,
         }));
     }
 
@@ -831,7 +834,11 @@ mod tests {
                     block: Block {
                         statements: VecDeque::new()
                     },
-                    position: Position { offset: 5, line: 1, column: 6 }
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    }
                 }
             ),])
         }
@@ -845,7 +852,11 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -859,12 +870,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 16, line: 1, column: 17 }
+                                            position: Position {
+                                                offset: 16,
+                                                line: 1,
+                                                column: 17
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: AdditionOperator::Add,
-                                    position: Position { offset: 22, line: 1, column: 23 }
+                                    position: Position {
+                                        offset: 22,
+                                        line: 1,
+                                        column: 23
+                                    }
                                 }
                             )),
                             Statement::Expression(Expression::AdditiveExpression(
@@ -875,12 +894,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 25, line: 1, column: 26 }
+                                            position: Position {
+                                                offset: 25,
+                                                line: 1,
+                                                column: 26
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::StringLiteral("12".to_string())),
                                     operator: AdditionOperator::Subtract,
-                                    position: Position { offset: 33, line: 1, column: 34 }
+                                    position: Position {
+                                        offset: 33,
+                                        line: 1,
+                                        column: 34
+                                    }
                                 }
                             ))
                         ])
@@ -898,7 +925,11 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -923,12 +954,27 @@ mod tests {
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     block: Block {
                         statements: VecDeque::from_iter([
-                            Statement::Return(Return { expression: None, position: Position { offset: 22, line: 1, column: 23 },}),
                             Statement::Return(Return {
-                                position: Position { offset: 32, line: 1, column: 33 },
+                                expression: None,
+                                position: Position {
+                                    offset: 22,
+                                    line: 1,
+                                    column: 23
+                                },
+                            }),
+                            Statement::Return(Return {
+                                position: Position {
+                                    offset: 32,
+                                    line: 1,
+                                    column: 33
+                                },
                                 expression: Some(Box::new(Expression::AdditiveExpression(
                                     AdditiveExpression {
                                         left: Box::new(Expression::VariableExpression(
@@ -937,14 +983,22 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                position: Position { offset: 32, line: 1, column: 33 }
+                                                position: Position {
+                                                    offset: 32,
+                                                    line: 1,
+                                                    column: 33
+                                                }
                                             }
                                         )),
                                         right: Box::new(Expression::StringLiteral(
                                             "12".to_string()
                                         )),
                                         operator: AdditionOperator::Subtract,
-                                        position: Position { offset: 40, line: 1, column: 41 }
+                                        position: Position {
+                                            offset: 40,
+                                            line: 1,
+                                            column: 41
+                                        }
                                     }
                                 )))
                             })
@@ -963,7 +1017,11 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -976,11 +1034,19 @@ mod tests {
                                             name: "xx".to_string(),
                                             arguments: None
                                         }]),
-                                        position: Position { offset: 16, line: 1, column: 17 }
+                                        position: Position {
+                                            offset: 16,
+                                            line: 1,
+                                            column: 17
+                                        }
                                     }
                                 )),
                                 ident: "faf".to_string(),
-                                position: Position { offset: 20, line: 1, column: 21 }
+                                position: Position {
+                                    offset: 20,
+                                    line: 1,
+                                    column: 21
+                                }
                             })),
                             Statement::Expression(Expression::HasExpression(HasExpression {
                                 expression: Box::new(Expression::VariableExpression(
@@ -995,11 +1061,19 @@ mod tests {
                                                 arguments: Some(VecDeque::new())
                                             }
                                         ]),
-                                        position: Position { offset: 29, line: 1, column: 30 }
+                                        position: Position {
+                                            offset: 29,
+                                            line: 1,
+                                            column: 30
+                                        }
                                     }
                                 )),
                                 ident: "XD".to_string(),
-                                position: Position { offset: 37, line: 1, column: 38 }
+                                position: Position {
+                                    offset: 37,
+                                    line: 1,
+                                    column: 38
+                                }
                             })),
                         ])
                     }
@@ -1016,7 +1090,11 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
@@ -1030,12 +1108,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 16, line: 1, column: 17 }
+                                            position: Position {
+                                                offset: 16,
+                                                line: 1,
+                                                column: 17
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: AdditionOperator::Add,
-                                    position: Position { offset: 22, line: 1, column: 23 }
+                                    position: Position {
+                                        offset: 22,
+                                        line: 1,
+                                        column: 23
+                                    }
                                 }
                             )),
                             Statement::Expression(Expression::AdditiveExpression(
@@ -1046,12 +1132,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 25, line: 1, column: 26 }
+                                            position: Position {
+                                                offset: 25,
+                                                line: 1,
+                                                column: 26
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: AdditionOperator::Subtract,
-                                    position: Position { offset: 31, line: 1, column: 32 }
+                                    position: Position {
+                                        offset: 31,
+                                        line: 1,
+                                        column: 32
+                                    }
                                 }
                             )),
                             Statement::Expression(Expression::MultiplicativeExpression(
@@ -1062,12 +1156,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 34, line: 1, column:35 }
+                                            position: Position {
+                                                offset: 34,
+                                                line: 1,
+                                                column: 35
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: MultiplicationOperator::Multiplication,
-                                    position: Position { offset: 40, line: 1, column: 41 }
+                                    position: Position {
+                                        offset: 40,
+                                        line: 1,
+                                        column: 41
+                                    }
                                 }
                             )),
                             Statement::Expression(Expression::MultiplicativeExpression(
@@ -1078,12 +1180,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 43, line: 1, column: 44 }
+                                            position: Position {
+                                                offset: 43,
+                                                line: 1,
+                                                column: 44
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(12))),
                                     operator: MultiplicationOperator::Division,
-                                    position: Position { offset: 49, line: 1, column: 50 }
+                                    position: Position {
+                                        offset: 49,
+                                        line: 1,
+                                        column: 50
+                                    }
                                 }
                             )),
                             Statement::Expression(Expression::OrExpression(OrExpression {
@@ -1093,11 +1203,19 @@ mod tests {
                                             name: "xx".to_string(),
                                             arguments: None
                                         }]),
-                                        position: Position { offset: 52, line: 1, column: 53 }
+                                        position: Position {
+                                            offset: 52,
+                                            line: 1,
+                                            column: 53
+                                        }
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(12))),
-                                position: Position { offset: 59, line: 1, column: 60 }
+                                position: Position {
+                                    offset: 59,
+                                    line: 1,
+                                    column: 60
+                                }
                             }))
                         ])
                     }
@@ -1188,13 +1306,21 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
                     block: Block {
                         statements: VecDeque::from_iter([Statement::While(While {
-                            position: Position { offset: 21, line: 1, column: 22 },
+                            position: Position {
+                                offset: 21,
+                                line: 1,
+                                column: 22
+                            },
                             condition: Box::new(Expression::EqualExpression(EqualExpression {
                                 left: Box::new(Expression::VariableExpression(
                                     VariableExpression {
@@ -1202,12 +1328,20 @@ mod tests {
                                             name: "xx".to_string(),
                                             arguments: None
                                         }]),
-                                        position: Position { offset: 23, line: 1, column: 24 }
+                                        position: Position {
+                                            offset: 23,
+                                            line: 1,
+                                            column: 24
+                                        }
                                     }
                                 )),
                                 right: Box::new(Expression::Number(Decimal::from(1))),
                                 operator: EqualOperator::NotEqual,
-                                position: Position { offset: 26, line: 1, column: 27 }
+                                position: Position {
+                                    offset: 26,
+                                    line: 1,
+                                    column: 27
+                                }
                             })),
                             block: Box::new(Block {
                                 statements: VecDeque::from_iter([Statement::Expression(
@@ -1218,12 +1352,20 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                position: Position { offset: 34, line: 1, column: 35 }
+                                                position: Position {
+                                                    offset: 34,
+                                                    line: 1,
+                                                    column: 35
+                                                }
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
                                         operator: AdditionOperator::Add,
-                                        position: Position { offset: 40, line: 1, column: 41 }
+                                        position: Position {
+                                            offset: 40,
+                                            line: 1,
+                                            column: 41
+                                        }
                                     })
                                 )])
                             })
@@ -1242,19 +1384,31 @@ mod tests {
                 "main".to_string(),
                 Function {
                     name: String::from("main"),
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
                     block: Block {
                         statements: VecDeque::from_iter([Statement::For(For {
-                            position: Position { offset: 20, line: 1, column: 21 },
+                            position: Position {
+                                offset: 20,
+                                line: 1,
+                                column: 21
+                            },
                             object: Box::new(Expression::VariableExpression(VariableExpression {
                                 path: VecDeque::from_iter([FunCallOrMember {
                                     name: "eee".to_string(),
                                     arguments: None
                                 }]),
-                                position: Position { offset: 27, line: 1, column: 28 }
+                                position: Position {
+                                    offset: 27,
+                                    line: 1,
+                                    column: 28
+                                }
                             })),
                             iterator: "xx".to_string(),
                             block: Box::new(Block {
@@ -1266,12 +1420,20 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                position: Position { offset: 32, line: 1, column: 33 }
+                                                position: Position {
+                                                    offset: 32,
+                                                    line: 1,
+                                                    column: 33
+                                                }
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
                                         operator: AdditionOperator::Add,
-                                        position: Position { offset: 38, line: 1, column: 39 }
+                                        position: Position {
+                                            offset: 38,
+                                            line: 1,
+                                            column: 39
+                                        }
                                     })
                                 )])
                             })
@@ -1289,14 +1451,22 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
                     block: Block {
                         statements: VecDeque::from_iter([Statement::If(If {
-                            position: Position { offset: 18, line: 1, column: 19 },
+                            position: Position {
+                                offset: 18,
+                                line: 1,
+                                column: 19
+                            },
                             condition: Some(Box::new(Expression::EqualExpression(
                                 EqualExpression {
                                     left: Box::new(Expression::VariableExpression(
@@ -1305,12 +1475,20 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 20, line: 1, column: 21 }
+                                            position: Position {
+                                                offset: 20,
+                                                line: 1,
+                                                column: 21
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
                                     operator: EqualOperator::NotEqual,
-                                    position: Position { offset: 23, line: 1, column: 24 }
+                                    position: Position {
+                                        offset: 23,
+                                        line: 1,
+                                        column: 24
+                                    }
                                 }
                             ))),
                             else_block: None,
@@ -1323,12 +1501,20 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                position: Position { offset: 31, line: 1, column: 32 }
+                                                position: Position {
+                                                    offset: 31,
+                                                    line: 1,
+                                                    column: 32
+                                                }
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
                                         operator: AdditionOperator::Add,
-                                        position: Position { offset: 37, line: 1, column: 38 }
+                                        position: Position {
+                                            offset: 37,
+                                            line: 1,
+                                            column: 38
+                                        }
                                     })
                                 )])
                             })
@@ -1350,14 +1536,22 @@ mod tests {
             functions: HashMap::from([(
                 "main".to_string(),
                 Function {
-                    position: Position { offset: 5, line: 1, column: 6 },
+                    position: Position {
+                        offset: 5,
+                        line: 1,
+                        column: 6
+                    },
                     name: String::from("main"),
                     parameters: VecDeque::from_iter([Parameter {
                         name: "args".to_string(),
                     }]),
                     block: Block {
                         statements: VecDeque::from_iter([Statement::If(If {
-                            position: Position { offset: 27, line: 2, column: 13 },
+                            position: Position {
+                                offset: 27,
+                                line: 2,
+                                column: 13
+                            },
                             condition: Some(Box::new(Expression::EqualExpression(
                                 EqualExpression {
                                     left: Box::new(Expression::VariableExpression(
@@ -1366,17 +1560,29 @@ mod tests {
                                                 name: "xx".to_string(),
                                                 arguments: None
                                             }]),
-                                            position: Position { offset: 29, line: 2, column: 15 }
+                                            position: Position {
+                                                offset: 29,
+                                                line: 2,
+                                                column: 15
+                                            }
                                         }
                                     )),
                                     right: Box::new(Expression::Number(Decimal::from(1))),
                                     operator: EqualOperator::NotEqual,
-                                    position: Position { offset: 32, line: 2, column: 18 }
+                                    position: Position {
+                                        offset: 32,
+                                        line: 2,
+                                        column: 18
+                                    }
                                 }
                             ))),
                             else_block: Some(Box::new(If {
                                 condition: None,
-                                position: Position { offset: 78, line: 4, column: 16 },
+                                position: Position {
+                                    offset: 78,
+                                    line: 4,
+                                    column: 16
+                                },
                                 else_block: None,
                                 block: Box::new(Block {
                                     statements: VecDeque::from_iter([Statement::Expression(
@@ -1387,12 +1593,20 @@ mod tests {
                                                         name: "xx".to_string(),
                                                         arguments: None
                                                     }]),
-                                                    position: Position { offset: 81, line: 4, column: 19 }
+                                                    position: Position {
+                                                        offset: 81,
+                                                        line: 4,
+                                                        column: 19
+                                                    }
                                                 }
                                             )),
                                             right: Box::new(Expression::Number(Decimal::from(12))),
                                             operator: AdditionOperator::Add,
-                                            position: Position { offset: 87, line: 4, column: 25 }
+                                            position: Position {
+                                                offset: 87,
+                                                line: 4,
+                                                column: 25
+                                            }
                                         })
                                     )])
                                 })
@@ -1406,12 +1620,20 @@ mod tests {
                                                     name: "xx".to_string(),
                                                     arguments: None
                                                 }]),
-                                                position: Position { offset: 54, line: 3, column: 16 }
+                                                position: Position {
+                                                    offset: 54,
+                                                    line: 3,
+                                                    column: 16
+                                                }
                                             }
                                         )),
                                         right: Box::new(Expression::Number(Decimal::from(12))),
                                         operator: AdditionOperator::Add,
-                                        position: Position { offset: 60, line: 3, column: 22 }
+                                        position: Position {
+                                            offset: 60,
+                                            line: 3,
+                                            column: 22
+                                        }
                                     })
                                 )])
                             })
@@ -1587,7 +1809,7 @@ mod tests {
                                                     position: Position { offset: 87, line: 1, column: 88 },
                                                     condition: Some(Box::new(Expression::VariableExpression(VariableExpression{
                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "yy".to_string(), arguments: None }]),
-                                                        position: Position { offset: 89, line: 1, column: 90 }     
+                                                        position: Position { offset: 89, line: 1, column: 90 }
                                                     }))),
                                                     else_block: None,
                                                     block: Box::new(Block {
@@ -1633,13 +1855,13 @@ mod tests {
                                                             left: Box::new(Expression::MultiplicativeExpression(MultiplicativeExpression{
                                                                 left: Box::new(Expression::VariableExpression(VariableExpression{
                                                                     path: VecDeque::from_iter([FunCallOrMember{ name: "x".to_string(), arguments: None }]),
-                                                                    position: Position { offset: 15, line: 1, column: 16 }     
+                                                                    position: Position { offset: 15, line: 1, column: 16 }
                                                                 })),
                                                                 right: Box::new(Expression::AdditiveExpression(AdditiveExpression{
                                                                     left: Box::new(Expression::Number(Decimal::from(13))),
                                                                     right: Box::new(Expression::VariableExpression(VariableExpression{
                                                                         path: VecDeque::from_iter([FunCallOrMember{ name: "y".to_string(), arguments: None }]),
-                                                                        position: Position { offset: 25, line: 1, column: 26 }     
+                                                                        position: Position { offset: 25, line: 1, column: 26 }
                                                                     })),
                                                                     operator: AdditionOperator::Add,
                                                                     position: Position { offset: 26, line: 1, column: 27 }

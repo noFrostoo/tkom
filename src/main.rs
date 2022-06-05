@@ -15,7 +15,6 @@ mod visitor;
 
 use clap::Parser;
 
-/// Simple program to greet a person
 #[derive(Parser)]
 #[clap(name = "TKOM")]
 #[clap(author = "Daniel Lipniacki")]
@@ -29,7 +28,7 @@ struct Cli {
     #[clap(long)]
     fail_fast: bool,
 
-    #[clap(short, long, default_value_t=12)]
+    #[clap(short, long, default_value_t = 12)]
     stack_trace_len: usize,
 }
 
