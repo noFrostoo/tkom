@@ -71,21 +71,13 @@ impl Object {
         self.fields.insert(name.clone(), value);
     }
 
-    pub fn add_field(&mut self, name: &String, value: Value) {
+    pub fn add_field(&mut self, name: &String, value: Value) -> Option<()> {
         match self.fields.get(name) {
-            Some(_) => {}
+            Some(_) => {None}
             None => {
                 self.fields.insert(name.clone(), value);
+                Some(())
             }
-        }
-    }
-
-    pub fn update_field(&mut self, name: &String, value: Value) {
-        match self.fields.get(name) {
-            Some(_) => {
-                self.fields.insert(name.clone(), value);
-            }
-            None => {}
         }
     }
 
@@ -238,7 +230,7 @@ impl Visitor<Value> for Executor {
     fn visit_block(&mut self, n: &Block) -> Value {
         self.current_context().new_scope();
 
-        for stmt in n.statements.to_owned() {
+        for stmt in &n.statements {
             self.add_to_stack_trace(&stmt);
             match stmt {
                 Statement::Expression(e) => {
@@ -592,15 +584,15 @@ impl Visitor<Value> for Executor {
 
     fn visit_variable_expression(&mut self, expr: &VariableExpression) -> Value {
         let mut val = Value::None;
-        for elem in expr.path.clone() {
-            if let Some(arguments) = elem.arguments {
+        for elem in &expr.path {
+            if let Some(arguments) = &elem.arguments {
                 match val.clone() {
                     Value::Object(o) => {
                         if let Some(rc) = (*o).borrow().access_field(&elem.name) {
                             if let Value::Function(f) = rc {
                                 val = self.user_function_call(
                                     f.clone(),
-                                    arguments,
+                                    arguments.to_owned(),
                                     expr.position.clone(),
                                 );
                             } else {
@@ -620,7 +612,7 @@ impl Visitor<Value> for Executor {
                     Value::None => {
                         val = self.visit_function_call(
                             elem.name.clone(),
-                            arguments,
+                            arguments.to_owned(),
                             expr.position.clone(),
                         );
                     }
@@ -630,6 +622,13 @@ impl Visitor<Value> for Executor {
                     }),
                 }
             } else {
+                /*
+                
+                X = 1
+                
+                x += 1
+                
+                */
                 match val.clone() {
                     Value::Object(o) => match (*o).borrow().access_field(&elem.name) {
                         Some(v) => val = v,
@@ -867,7 +866,7 @@ impl Executor {
             Some(v) => match v {
                 Value::Object(o1) => {
                     if let Value::Object(o2) = right {
-                        obj.add_field(name, Value::Object(self.add_objects(o1, Rc::clone(o2))));
+                        obj.entry(name, Value::Object(self.add_objects(o1, Rc::clone(o2))))
                     } else {
                         self.error(ErrorKind::BadType {
                             value: right.clone(),
@@ -879,7 +878,7 @@ impl Executor {
                 Value::Number(n1) => {
                     if let Value::Number(n2) = right {
                         match n1.checked_add(*n2) {
-                            Some(n) => obj.add_field(name, Value::Number(n)),
+                            Some(n) => obj.entry(name, Value::Number(n)),
                             None => self.error(ErrorKind::NumberOverflow {
                                 number: n1,
                                 other: *n2,
@@ -900,7 +899,7 @@ impl Executor {
                         let s = s1.clone();
                         let other = s2.clone();
                         let added = s + &other;
-                        obj.add_field(name, Value::String(added));
+                        obj.entry(name, Value::String(added));
                     } else {
                         self.error(ErrorKind::BadType {
                             value: right.clone(),
@@ -934,7 +933,7 @@ impl Executor {
 
         if let (Value::Object(o1), Value::Object(o2)) = values {
             let added = self.add_objects(Rc::clone(o1), Rc::clone(o2));
-            println!("{}", (*added).borrow().to_string());
+
             self.update_value(name, Value::Object(added.clone()));
             return Value::Object(added);
         }
@@ -1118,7 +1117,7 @@ impl Executor {
         copy
     }
 
-    fn error(&mut self, err: ErrorKind) -> () {
+    fn error(&self, err: ErrorKind) -> () {
         self.print_stack_trace();
         ErrorHandler::fatal(err);
         exit(1)
@@ -1929,5 +1928,26 @@ mod test {
             l.val = 1;
             return x * l; 
         }"
+    );
+    executor_test!(
+        reference_test,
+        "
+        modify(p) {
+            p.age += 1;
+        }
+        
+        main() {
+            person = Object();
+            personB = person;
+        
+            person.age = 20;
+        
+            modify(person);
+            
+            return person;
+        }
+        ",Value::Object(Rc::new(RefCell::new(Object {
+            fields: HashMap::from([("age".to_string(), Value::Number(Decimal::new(21, 0)))])
+        })))
     );
 }

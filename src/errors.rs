@@ -139,6 +139,10 @@ pub enum ErrorKind {
     BadConvert {
         number: String,
     },
+    FieldExists {
+        name: String,
+        pos: Position
+    }
 }
 
 pub struct ErrorHandler;
@@ -363,6 +367,12 @@ impl ErrorHandler {
             }
             ErrorKind::BadConvert { number } => {
                 format!("Bad convert: {}", number)
+            },
+            ErrorKind::FieldExists { name, pos } => {
+                format!(
+                    "Field already exists: {}, at: {} column: {}",
+                    name, pos.line, pos.column
+                )
             }
         }
     }

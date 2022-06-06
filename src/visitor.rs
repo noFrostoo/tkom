@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use rust_decimal::Decimal;
 
-use crate::{executor::Value, types::*};
+use crate::{ types::*};
 
 pub trait Visitor<T> {
     fn visit_program(&mut self, n: &Program) -> T;

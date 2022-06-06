@@ -37,7 +37,7 @@ fn main() {
 
     let program;
     {
-        let fs = match FileSource::new(String::from(args.file)) {
+        let fs = match FileSource::new(args.file) {
             Ok(f) => f,
             Err(err) => ErrorHandler::io_error(err),
         };
